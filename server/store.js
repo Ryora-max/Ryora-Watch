@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS reactions (
   emoji TEXT, ts INTEGER,
   PRIMARY KEY (pair_id, target_type, target_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS ai_facts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, fact TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -191,6 +194,23 @@ export const store = {
     bucket: db.prepare('SELECT text,done,ts FROM bucket WHERE pair_id=?').all(pairId),
     miss_events: db.prepare('SELECT from_user,pattern,ts FROM miss_events WHERE pair_id=?').all(pairId),
   }),
+  facts: (uid, limit = 20) => db.prepare('SELECT fact FROM ai_facts WHERE user_id=? ORDER BY ts DESC LIMIT ?').all(uid, limit).map(r => r.fact),
+  addFact: (uid, fact) => {
+    db.prepare('INSERT INTO ai_facts (user_id,fact,ts) VALUES (?,?,?)').run(uid, fact.slice(0, 160), Date.now());
+    db.prepare('DELETE FROM ai_facts WHERE user_id=? AND id NOT IN (SELECT id FROM ai_facts WHERE user_id=? ORDER BY ts DESC LIMIT 30)').run(uid, uid);
+  },
+  feed: (pairId, limit = 30) => {
+    const rows = [];
+    const push = (type, uid, text, ts) => rows.push({ type, uid, text, ts });
+    db.prepare('SELECT from_user uid, pattern, ts FROM miss_events WHERE pair_id=? ORDER BY ts DESC LIMIT 20').all(pairId).forEach(r => push('miss', r.uid, '💓 kangen ×' + (r.pattern || 1), r.ts));
+    db.prepare('SELECT user_id uid, text, ts FROM notes WHERE pair_id=?').all(pairId).forEach(r => push('note', r.uid, '📝 catatan: "' + (r.text || '').slice(0, 40) + '"', r.ts));
+    db.prepare('SELECT user_id uid, day, ts FROM answers WHERE pair_id=? ORDER BY ts DESC LIMIT 15').all(pairId).forEach(r => push('answer', r.uid, '❓ jawab pertanyaan harian', r.ts));
+    db.prepare('SELECT user_id uid, caption, ts FROM photos WHERE pair_id=? ORDER BY ts DESC LIMIT 15').all(pairId).forEach(r => push('photo', r.uid, '📸 kirim foto harian', r.ts));
+    db.prepare('SELECT user_id uid, caption, ts FROM memories WHERE pair_id=? ORDER BY ts DESC LIMIT 15').all(pairId).forEach(r => push('memory', r.uid, '🖼️ kenangan baru' + (r.caption ? ': "' + r.caption.slice(0, 30) + '"' : ''), r.ts));
+    db.prepare('SELECT user_id uid, dur, ts FROM voices WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('voice', r.uid, '🎤 pesan suara ' + r.dur + 'd', r.ts));
+    db.prepare('SELECT text, done, created_by uid, ts FROM bucket WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('bucket', r.uid, (r.done ? '🪣✅ ' : '🪣 impian baru: ') + r.text.slice(0, 30), r.ts));
+    return rows.sort((a, b) => b.ts - a.ts).slice(0, limit);
+  },
   monthStats: (pairId, since) => ({
     miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,
     miss_by: db.prepare('SELECT from_user, COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),

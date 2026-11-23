@@ -246,6 +246,25 @@ function connectSocket() {
     const el = $('#touchState'); if (el) el.textContent = '💞 NYENTUH BARENG!';
     toast('💞 Kalian nyentuh bareng!');
   });
+  socket.on('suit:invite', ({ from }) => {
+    suitWaiting = true;
+    ding();
+    const el = $('#suitState'); if (el) el.textContent = `${from} udah milih — giliran kamu! 👀`;
+    toast(`${from} ngajak adu suit! ✊✋✌️`);
+    navigator.vibrate?.(150);
+  });
+  socket.on('suit:result', ({ winner, names, picks }) => {
+    suitWaiting = false;
+    const myHand = picks[me.user.id], theirHand = Object.entries(picks).find(([id]) => id !== me.user.id)?.[1];
+    const msg = winner === 'draw' ? `Seri! ${myHand} vs ${theirHand} 🤝`
+      : winner === me.user.id ? `KAMU MENANG! ${myHand} vs ${theirHand} 🎉`
+      : `${names[winner]} menang — ${theirHand} vs ${myHand} 😭`;
+    ding(); if (winner === me.user.id) { heartRain(15); navigator.vibrate?.([300, 100, 300]); } else navigator.vibrate?.(150);
+    const el = $('#suitState'); if (el) el.textContent = msg;
+    toast(msg, 4000);
+    suitMyPick = null;
+    $$('.suit').forEach(x => x.classList.remove('on'));
+  });
   socket.on('partner:mood', ({ mood, uid }) => {
     if (uid === me.user.id) return;
     me.partner.mood = mood;
@@ -256,6 +275,7 @@ function connectSocket() {
   });
 }
 
+let suitMyPick = null, suitWaiting = false;
 let actx = null;
 function ding() {
   try {
@@ -421,6 +441,15 @@ function show(tab) {
           <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
         </div>
       </div>
+      <div class="msect"><b>✊ Adu suit</b>
+        <div class="muted" style="margin:2px 0 8px">pilih barengan — hasilnya muncul di dua HP</div>
+        <div class="suitrow">
+          <button class="suit" data-h="✊">✊</button>
+          <button class="suit" data-h="✋">✋</button>
+          <button class="suit" data-h="✌️">✌️</button>
+        </div>
+        <div class="muted" id="suitState" style="margin-top:8px;min-height:18px"></div>
+      </div>
       <div class="msect"><b>🎤 Pesan suara</b>
         <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
         <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
@@ -436,6 +465,12 @@ function show(tab) {
     const tOn = () => { socket.emit('touch:start'); $('#touchState').textContent = `menunggu ${me.partner.name}…`; tb.classList.add('on'); };
     const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
+    $$('.suit').forEach(b => b.onclick = () => {
+      suitMyPick = b.dataset.h;
+      $$('.suit').forEach(x => x.classList.toggle('on', x === b));
+      socket.emit('suit:pick', { hand: b.dataset.h });
+      $('#suitState').textContent = suitWaiting ? '✨' : `kamu pilih ${b.dataset.h} — nunggu ${me.partner.name}…`;
+    });
     return loadMissTab();
   }
   if (tab === 'sched') {
@@ -505,6 +540,7 @@ async function renderHome(v) {
       ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 12))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
       <div class="hchip" id="hMiss">💓 kangen</div>
       <div class="hchip" id="hWrap2">📊 rekap</div>
+      <div class="hchip" id="hWx">🌦️ cuaca…</div>
     </div>
     <div class="hcard">
       <div class="hlabel">❓ Pertanyaan hari ini</div>
@@ -542,9 +578,20 @@ async function renderHome(v) {
         <div><b>${d.recap.photo}</b><span>📸 foto</span></div>
         <div><b>${d.recap.ans}</b><span>❓ jawaban</span></div>
       </div><button id="hWrap" class="ghost" style="margin-top:10px;font-size:13px">📊 Kartu rekap ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</button></div>` : ''}
+    ${d.feed?.length ? `<div class="hcard"><div class="hlabel">⚡ Aktivitas kalian</div>
+      ${d.feed.map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('')}
+    </div>` : ''}
   </div>`;
   $('#hWrap') && ($('#hWrap').onclick = () => wrappedModal());
   $('#hWrap2') && ($('#hWrap2').onclick = () => wrappedModal());
+  api('/weather').then(w => {
+    const el2 = $('#hWx'); if (!el2 || !w) return;
+    const wd = (x) => x ? (x.code >= 60 ? '🌧️' : x.code >= 50 ? '🌦️' : x.code >= 3 ? '☁️' : x.code ? '⛅' : '☀️') + x.t + '°' : null;
+    const a = wd(w.me), b = wd(w.partner);
+    el2.textContent = a && b ? `${a} kamu · ${b} dia` : a ? `${a} kamu` : b ? `${b} dia` : '';
+    if (!a && !b) el2.style.display = 'none';
+  }).catch(() => { const el2 = $('#hWx'); if (el2) el2.style.display = 'none'; });
+  v.querySelectorAll('.hphoto img').forEach(img => { img.style.cursor = 'zoom-in'; img.onclick = () => photoViewer(img.src); });
   v.querySelectorAll('.hreact button').forEach(b => b.onclick = async () => {
     const row = b.closest('.hreact');
     const tid = row.dataset.tid || todayKey();
@@ -574,6 +621,7 @@ async function renderHome(v) {
     el.innerHTML = mems.length ? mems.slice(0, 4).map(m => `<div class="hphoto"><img src="${m.img}"><span>${m.mine ? 'Kamu' : esc(m.from_name || '?')}${m.caption ? ' · ' + esc(m.caption) : ''}${m.mine ? `<b class="mdel" data-id="${m.id}">×</b>` : ''}</span></div>`).join('') + (mems.length > 4 ? `<div class="hphoto more"><span>+${mems.length - 4} lagi</span></div>` : '')
       : '<div class="hsub">belum ada kenangan — abadikan momen pertama 📷</div>';
     el.querySelectorAll('.mdel').forEach(x => x.onclick = async e => { e.stopPropagation(); await api('/memory/' + x.dataset.id, { method: 'DELETE' }); renderHome(v); });
+    el.querySelectorAll('.hphoto img').forEach(img => { img.style.cursor = 'zoom-in'; img.onclick = () => photoViewer(img.src); });
   });
   $('#mfile').onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -606,6 +654,14 @@ async function renderHome(v) {
     };
     img.src = URL.createObjectURL(f);
   };
+}
+
+function photoViewer(src) {
+  const el = document.createElement('div'); el.className = 'wmodal';
+  el.style.background = 'rgba(5,15,30,.94)';
+  el.innerHTML = `<img src="${src}" style="max-width:94vw;max-height:86dvh;border-radius:14px;box-shadow:0 10px 60px rgba(0,0,0,.6)">`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
 }
 
 // ---------- WATCH SIMULATOR (watchface → tap/crown → grid icon → app) ----------

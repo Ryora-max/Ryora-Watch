@@ -22,7 +22,7 @@ const dist = (a, b) => {
 // ---- cuaca beneran: Open-Meteo gratis ----
 const wcache = new Map();
 const wdesc = (c) => c === 0 ? 'cerah ☀️' : c < 3 ? 'cerah berawan ⛅' : c < 50 ? 'berawan ☁️' : c < 60 ? 'gerimis 🌦️' : c < 70 ? 'hujan 🌧️' : c < 80 ? 'berkabut 🌫️' : c < 90 ? 'hujan deras 🌧️' : 'badai ⛈️';
-async function weatherFor(lat, lng) {
+export async function weatherFor(lat, lng) {
   const k = `${lat.toFixed(1)},${lng.toFixed(1)}`, c = wcache.get(k);
   if (c && Date.now() - c.ts < 30 * 60e3) return c.w;
   const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,relative_humidity_2m&timezone=auto`, { signal: AbortSignal.timeout(4000) });
@@ -81,6 +81,7 @@ GAYA NGOMONG — paling penting: kayak sahabat asli di WhatsApp. Santai banget, 
 ATURAN: jawab 1-3 kalimat pendek aja (tampil di layar jam & dibacakan suara). Emoji sewajarnya, nggak tiap kalimat. Nggak wajib nanya balik — kadang cukup reaksi, komentar, atau cerita singkat. Kalau topik serius (berita, sains, politik) jawab yang bener tapi tetap santai. Kalau user curhat: dengar dulu, tanggapi emosional, jangan langsung nasihatin. Jangan pakai markdown/format (tanpa *teks*, **teks**, atau list). Variasikan pembuka tiap jawaban — jangan selalu mulai dengan kata yang sama. Jawabanmu akan dibacakan TTS jadi tulis kayak orang ngomong beneran.
 
 KONTEKS: ${c.partner ? `pasangan ${c.user.name} = ${c.partner.name}. Lokasi ${c.partner.name}: ${c.loc ? `${c.loc.lat.toFixed(4)},${c.loc.lng.toFixed(4)} (${ago(c.loc.ts)})` : 'belum ada'}. Jadwal hari ini: ${c.schedules.map(s => `${fmt(s.start_time)} ${s.title}`).join(', ') || 'kosong'}.` : 'Pasangan belum connect.'}
+${c.facts?.length ? `HAL YANG KAMU INGAT TENTANG ${c.user.name.toUpperCase()}: ${c.facts.join('; ')}.` : ''}
 Boleh bahas apa aja: curhat, gosip, sekolah, kerja, hobi, film, musik, game, hubungan, nasihat santai, berita, random. Nggak tahu? jawab jujur santai, jangan ngarang.`;
 
 async function gemini(ctx, msg) {

@@ -393,3 +393,12 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .hreact button { width:auto; padding:4px 10px; font-size:13px; border-radius:20px; background:var(--card); border:1px solid var(--line); box-shadow:none; color:var(--text); }
 .hreact button.on { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent); }
 .hreact button i { font-style:normal; font-size:10px; color:var(--dim); margin-left:3px; }
+.feedrow{display:flex;align-items:baseline;gap:8px;padding:7px 2px;font-size:13px;border-bottom:1px dashed var(--line)}
+.feedrow:last-child{border-bottom:0}
+.feedrow .fwho{font-weight:700;color:var(--accent);flex-shrink:0}
+.feedrow .fwho.them{color:var(--accent2,#e0709a)}
+.feedrow .ftxt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feedrow .fwhen{font-size:10px;color:var(--dim);flex-shrink:0}
+.suitrow{display:flex;gap:12px;justify-content:center;margin-top:4px}
+.suit{width:64px;height:64px;border-radius:50%;font-size:28px;background:var(--card);border:2px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.15);transition:transform .15s,border-color .15s}
+.suit.on{border-color:var(--accent);transform:scale(1.12);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent),0 4px 14px rgba(0,0,0,.15)}

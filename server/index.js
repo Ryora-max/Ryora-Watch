@@ -161,6 +161,7 @@ app.get('/api/home', auth, (req, res) => {
     photos: pho.map(p => ({ mine: p.user_id === req.user.id, img: p.img, caption: p.caption, ts: p.ts, reacts: store.reactionsFor(req.user.pair_id, 'photo', day + ':' + p.user_id).map(r => ({ emoji: r.emoji, mine: r.user_id === req.user.id })) })),
     answerReacts: store.reactionsFor(req.user.pair_id, 'answer', day).map(r => ({ emoji: r.emoji, mine: r.user_id === req.user.id })),
     streak: store.missStreak(req.user.pair_id),
+    feed: store.feed(req.user.pair_id, 8).map(f => ({ ...f, mine: f.uid === req.user.id, who: f.uid === req.user.id ? req.user.name : partner.name })),
     recap: {
       miss: store.missCount(req.user.pair_id, req.user.id, weekAgo.getTime()) + store.missCount(req.user.pair_id, partner.id, weekAgo.getTime()),
       sched: store.schedules(req.user.pair_id).filter(s => s.start_time >= weekAgo.getTime() && s.start_time <= Date.now()).length,
@@ -194,6 +195,19 @@ app.delete('/api/bucket/:id', auth, (req, res) => {
   store.delBucket(req.user.pair_id, req.params.id);
   io.to(req.user.pair_id).emit('bucket:changed');
   res.json({ ok: true });
+});
+
+app.get('/api/weather', auth, async (req, res) => {
+  const myLoc = store.latestLoc(req.user.id);
+  const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
+  const pLoc = partner ? store.latestLoc(partner.id) : null;
+  const out = { me: null, partner: null };
+  try {
+    const { weatherFor } = await import('./ai.js');
+    if (myLoc?.lat) out.me = await weatherFor(myLoc.lat, myLoc.lng);
+    if (pLoc?.lat) out.partner = await weatherFor(pLoc.lat, pLoc.lng);
+  } catch {}
+  res.json(out);
 });
 
 app.post('/api/react', auth, (req, res) => {
@@ -346,8 +360,19 @@ app.post('/api/ai/chat', auth, async (req, res) => {
     missRecv: partner ? store.missCount(req.user.pair_id, partner.id, week) : 0,
     aiName: req.user.ai_name,
     aiGender: req.user.ai_gender,
+    facts: store.facts(req.user.id),
     history: store.chatHistory(req.user.id, 12),
   };
+  // "ingat/inget ya ..." → simpan fakta soal user biar AI beneran ingat
+  const mem = msg.match(/^(?:ingat|inget|tolong ingat|catet|catat)\s*(?:in|ya)?\s*(?:kalau|kalo)?\s*(?:aku|gw|gue)?\s*(.+)/i);
+  if (mem && mem[1]?.trim().length > 3) {
+    const fact = mem[1].trim();
+    store.addFact(req.user.id, fact);
+    const r = { reply: `Oke noted, aku ingat ya — ${fact.replace(/[.!]+$/, '')} 📝 bakal aku inget terus!`, source: 'memory' };
+    store.addChatMsg(req.user.id, 'user', msg);
+    store.addChatMsg(req.user.id, 'model', r.reply);
+    return res.json(r);
+  }
   const r = await aiChat(req.user, partner, ctx.schedules, ctx, msg);
   if (msg.trim() && r.reply) {
     store.addChatMsg(req.user.id, 'user', msg);
@@ -365,6 +390,7 @@ const online = new Map(); // userId -> socketId
 const batt = new Map();   // userId -> battery %
 const lastMiss = new Map();
 const touching = new Set(); // userId yang lagi tahan sentuh
+const suitPicks = new Map(); // pairId -> {userId: {hand, ts}}
 
 io.use((socket, next) => {
   const u = store.userByToken(socket.handshake.auth?.token);
@@ -422,6 +448,27 @@ io.on('connection', (socket) => {
   socket.on('touch:end', () => {
     touching.delete(u.id);
     if (u.pair_id) socket.to(u.pair_id).emit('touch:partner', { on: false });
+  });
+
+  // --- adu suit realtime (in-memory per pair) ---
+  socket.on('suit:pick', ({ hand }) => {
+    if (!u.pair_id || !['✊', '✋', '✌️'].includes(hand)) return;
+    const cur = suitPicks.get(u.pair_id) || {};
+    cur[u.id] = { hand, ts: Date.now() };
+    suitPicks.set(u.pair_id, cur);
+    const partner = store.partnerOf(u);
+    if (partner && cur[partner.id] && Date.now() - cur[partner.id].ts < 120000) {
+      const a = cur[u.id].hand, b = cur[partner.id].hand;
+      const beats = (x, y) => (x === '✊' && y === '✌️') || (x === '✋' && y === '✊') || (x === '✌️' && y === '✋');
+      const winner = a === b ? 'draw' : beats(a, b) ? u.id : partner.id;
+      io.to(u.pair_id).emit('suit:result', {
+        winner, names: { [u.id]: u.name, [partner.id]: partner.name },
+        picks: { [u.id]: a, [partner.id]: b },
+      });
+      suitPicks.delete(u.pair_id);
+    } else {
+      socket.to(u.pair_id).emit('suit:invite', { from: u.name });
+    }
   });
 
   socket.on('disconnect', () => {
