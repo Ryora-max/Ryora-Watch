@@ -155,7 +155,8 @@ async function mainUI() {
   </header>
   <div id="view"></div>
   <nav>
-    <button data-t="watch" class="on">⌚<span>Jam</span></button>
+    <button data-t="home" class="on">🏠<span>Home</span></button>
+    <button data-t="watch">⌚<span>Jam</span></button>
     <button data-t="map">🗺️<span>Peta</span></button>
     <button data-t="sched">📅<span>Jadwal</span></button>
     <button data-t="miss">💓<span>Kangen</span></button>
@@ -168,7 +169,7 @@ async function mainUI() {
   if (me.partnerBattery != null) $('#pbatt').textContent = ` ${me.partnerBattery}%`;
   schedCache = await api('/schedules');
   api('/ai/history').then(h => { if (h?.length && !chatMsgs.length) chatMsgs = h.map(m => ({ role: m.role === 'model' ? 'ai' : 'me', text: m.text, ts: m.ts })); }).catch(() => {});
-  connectSocket(); show('watch'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
+  connectSocket(); show('home'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
   if (location.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(location.hostname))
     banner('⚠️ GPS butuh HTTPS — buka via localhost atau tunnel (cloudflared/ngrok)');
   clearInterval(remindTimer);
@@ -206,7 +207,8 @@ function connectSocket() {
     setTimeout(() => $('#missOverlay').classList.add('hidden'), 3500);
     refreshMissStat();
   });
-  socket.on('miss:sent', () => { navigator.vibrate?.(80); toast('💓 terkirim!'); refreshMissStat(); });
+  socket.on('miss:sent', () => { navigator.vibrate?.(80); toast('💓 terkirim!'); refreshMissStat(); if (currentTab === 'miss') loadMissTab(); });
+  socket.on('home:changed', () => { if (currentTab === 'home') renderHome($('#view')); });
   socket.on('partner:mood', ({ mood, uid }) => {
     if (uid === me.user.id) return;
     me.partner.mood = mood;
@@ -357,6 +359,7 @@ function show(tab) {
   wmini = null; delete markers.mew; delete markers.pw;
   map = null; delete markers.me; delete markers.p; trailLine = null; linkLine = null;
   const v = $('#view');
+  if (tab === 'home') return renderHome(v);
   if (tab === 'watch') return showWatch(v);
   if (tab === 'map') {
     v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><div class="locpanel" id="locpanel"><span class="avatar">${esc(me.partner.name[0].toUpperCase())}</span><div class="locinfo"><b>${esc(me.partner.name)}</b><span>menunggu lokasi…</span></div></div>`;
@@ -403,6 +406,75 @@ function show(tab) {
     $('#aiprof').onclick = aiProfile; $('#aiprof2').onclick = aiProfile;
     return setupMic('#micBtn', '#cin');
   }
+}
+
+// ---------- HOME / WIDGET DASHBOARD ----------
+async function renderHome(v) {
+  v.innerHTML = `<div class="home"><div class="hskel">memuat…</div></div>`;
+  const d = await api('/home');
+  if (!d || currentTab !== 'home' || !$('#view .home')) return;
+  const p = me.partner;
+  const next = schedCache.find(s => s.start_time > Date.now() - 60000);
+  const answered = !!d.myAnswer, both = answered && !!d.theirAnswer;
+  v.innerHTML = `<div class="home">
+    <div class="hcard pcard">
+      <span class="avatar big">${esc(p.name[0].toUpperCase())}</span>
+      <div class="pinfo"><b>${esc(p.name)} ${p.mood || ''}</b>
+        <span>${partnerOnline ? '🟢 online' : '⚪ ' + (partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline')}${distText() ? ' · 📍 ' + distText() : ''}</span>
+      </div>
+      <div class="hdays">💕<b>${daysTogether()}</b><span>hari</span></div>
+    </div>
+    <div class="hchips">
+      <div class="hchip">🔥 streak ${d.streak || 0} hari</div>
+      ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 16))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
+      <div class="hchip" id="hMiss">💓 kirim kangen</div>
+    </div>
+    <div class="hcard">
+      <div class="hlabel">❓ Pertanyaan hari ini</div>
+      <div class="hq">${esc(d.q || '')}</div>
+      ${!answered ? `<div class="hqin"><input id="hans" placeholder="Jawabanmu…" maxlength="200"><button id="hansBtn" class="mini">Kirim</button></div><div class="hsub">jawaban dia kebuka setelah kamu jawab</div>`
+        : both ? `<div class="hans"><b>${esc(me.user.name)}:</b> ${esc(d.myAnswer)}</div><div class="hans theirs"><b>${esc(p.name)}:</b> ${esc(d.theirAnswer)}</div>`
+        : `<div class="hans"><b>Kamu:</b> ${esc(d.myAnswer)}</div><div class="hsub">menunggu ${esc(p.name)} jawab… 🤫</div>`}
+    </div>
+    <div class="hcard">
+      <div class="hlabel">📝 Catatan buat dia <span class="hsub">(tampil di home-nya)</span></div>
+      ${d.theirNote ? `<div class="hnote">${esc(d.theirNote)}<span class="hfrom">— ${esc(p.name)}</span></div>` : ''}
+      <div class="hqin"><input id="hnote" placeholder="Tulis catatan kecil…" maxlength="200" value="${esc(d.myNote || '')}"><button id="hnoteBtn" class="mini">💌</button></div>
+    </div>
+    <div class="hcard">
+      <div class="hlabel">📸 Foto hari ini</div>
+      <div class="hphotos" id="hphotos">` +
+        (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(p.name)}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span></div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
+      `</div>
+      <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" hidden></label>
+    </div>
+  </div>`;
+  $('#hNext').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="sched"]').classList.add('on'); show('sched'); };
+  $('#hMiss').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="miss"]').classList.add('on'); show('miss'); };
+  const ansBtn = $('#hansBtn');
+  if (ansBtn) {
+    const send = async () => { const t = $('#hans').value.trim(); if (!t) return; await api('/daily/answer', { method: 'POST', body: { text: t } }); renderHome(v); };
+    ansBtn.onclick = send; $('#hans').onkeydown = e => { if (e.key === 'Enter') send(); };
+  }
+  $('#hnoteBtn').onclick = async () => {
+    await api('/note', { method: 'POST', body: { text: $('#hnote').value.trim() } });
+    toast('Catatan tersimpan 💌');
+  };
+  $('#hfile').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 640 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const data = c.toDataURL('image/jpeg', .72);
+      api('/photo', { method: 'POST', body: { img: data } }).then(r => {
+        if (r.ok) { toast('Foto terkirim 📸'); renderHome(v); } else toast(r.error || 'gagal kirim');
+      });
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(f);
+  };
 }
 
 // ---------- WATCH SIMULATOR (watchface → tap/crown → grid icon → app) ----------

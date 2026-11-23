@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS chat_msgs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT,
   role TEXT, text TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS notes (
+  user_id TEXT PRIMARY KEY, pair_id TEXT, text TEXT, ts INTEGER
+);
+CREATE TABLE IF NOT EXISTS answers (
+  pair_id TEXT, day TEXT, user_id TEXT, text TEXT, ts INTEGER,
+  PRIMARY KEY (pair_id, day, user_id)
+);
+CREATE TABLE IF NOT EXISTS photos (
+  pair_id TEXT, day TEXT, user_id TEXT, img TEXT, caption TEXT, ts INTEGER,
+  PRIMARY KEY (pair_id, day, user_id)
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -90,6 +101,7 @@ export const store = {
     db.prepare('DELETE FROM schedules WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM miss_events WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM pairs WHERE id=?').run(pairId);
+    store.breakPairAll?.(pairId);
   },
   pairOf: (userId) => db.prepare('SELECT p.* FROM pairs p JOIN users u ON u.pair_id=p.id WHERE u.id=?').get(userId),
   partnerOf: (user) => db.prepare('SELECT id,name,mood,last_seen FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
@@ -110,4 +122,27 @@ export const store = {
   addMiss: (pairId, fromUser, pattern) => db.prepare('INSERT INTO miss_events (pair_id,from_user,pattern,ts) VALUES (?,?,?,?)').run(pairId, fromUser, pattern, Date.now()),
   missCount: (pairId, uid, sinceMs) => db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND from_user=? AND ts>?').get(pairId, uid, sinceMs).c,
   missHistory: (pairId, limit = 30) => db.prepare('SELECT m.*, u.name AS from_name FROM miss_events m LEFT JOIN users u ON u.id=m.from_user WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, limit),
+  missStreak: (pairId) => {
+    const rows = db.prepare('SELECT ts FROM miss_events WHERE pair_id=? ORDER BY ts DESC LIMIT 1000').all(pairId);
+    const days = new Set(rows.map(r => new Date(r.ts).toDateString()));
+    let streak = 0; const d = new Date();
+    if (!days.has(d.toDateString())) d.setDate(d.getDate() - 1);
+    while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
+    return streak;
+  },
+
+  setNote: (uid, pairId, text) => db.prepare('INSERT INTO notes (user_id,pair_id,text,ts) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET text=excluded.text,ts=excluded.ts').run(uid, pairId, text, Date.now()),
+  noteOf: (uid) => db.prepare('SELECT text,ts FROM notes WHERE user_id=?').get(uid),
+
+  setAnswer: (pairId, day, uid, text) => db.prepare('INSERT INTO answers (pair_id,day,user_id,text,ts) VALUES (?,?,?,?,?) ON CONFLICT(pair_id,day,user_id) DO UPDATE SET text=excluded.text,ts=excluded.ts').run(pairId, day, uid, text, Date.now()),
+  answers: (pairId, day) => db.prepare('SELECT user_id,text,ts FROM answers WHERE pair_id=? AND day=?').all(pairId, day),
+
+  setPhoto: (pairId, day, uid, img, caption) => db.prepare('INSERT INTO photos (pair_id,day,user_id,img,caption,ts) VALUES (?,?,?,?,?,?) ON CONFLICT(pair_id,day,user_id) DO UPDATE SET img=excluded.img,caption=excluded.caption,ts=excluded.ts').run(pairId, day, uid, img, caption, Date.now()),
+  photos: (pairId, day) => db.prepare('SELECT user_id,img,caption,ts FROM photos WHERE pair_id=? AND day=?').all(pairId, day),
+
+  breakPairAll: (pairId) => {
+    db.prepare('DELETE FROM notes WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM answers WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM photos WHERE pair_id=?').run(pairId);
+  },
 };

@@ -9,7 +9,7 @@ const http = createServer(app);
 const io = new Server(http);
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 app.use(express.static('public'));
 
 const auth = (req, res, next) => {
@@ -94,15 +94,92 @@ app.get('/api/partner/location', auth, (req, res) => {
 
 // --- Miss you ---
 app.get('/api/miss/stats', auth, (req, res) => {
-  if (!req.user.pair_id) return res.json({ sent: 0, received: 0 });
+  if (!req.user.pair_id) return res.json({ sent: 0, received: 0, streak: 0 });
   const week = Date.now() - 7 * 86400000;
   const p = store.partnerOf(req.user);
-  res.json({ sent: store.missCount(req.user.pair_id, req.user.id, week), received: p ? store.missCount(req.user.pair_id, p.id, week) : 0 });
+  res.json({ sent: store.missCount(req.user.pair_id, req.user.id, week), received: p ? store.missCount(req.user.pair_id, p.id, week) : 0, streak: store.missStreak(req.user.pair_id) });
 });
 
 app.get('/api/miss/history', auth, (req, res) => {
   if (!req.user.pair_id) return res.json([]);
   res.json(store.missHistory(req.user.pair_id));
+});
+
+// --- Daily couple features (Home dashboard) ---
+const QUESTIONS = [
+  'Kalau hari ini kita bisa pergi ke mana aja, kamu mau ke mana?',
+  'Hal kecil apa yang pernah aku lakuin yang bikin kamu senyum?',
+  'Lagu apa yang ngingetin kamu ke kita?',
+  'Makanan apa yang paling pengen kamu makan bareng aku?',
+  'Kalau lagi kangen, hal pertama yang kamu lakuin apa?',
+  'Mimpi bareng kita yang pengen kamu wujudin duluan apa?',
+  'Momen favorit kita sejauh ini apa?',
+  'Kalau kita jadi karakter film, film apa?',
+  'Hal yang paling kamu syukuri dari hubungan kita?',
+  'Kalau bisa teleport ke aku sekarang, hal pertama yang kamu lakuin apa?',
+  'Kebiasaan aku yang paling gemes menurut kamu?',
+  'Liburan impian kita: pantai, gunung, atau kota?',
+  'Pesan untuk aku 5 tahun dari sekarang?',
+  'Film atau series yang pengen kamu tonton bareng aku?',
+  'Hal apa yang bikin kamu ngerasa paling disayang?',
+  'Kalau aku lagi sedih, cara terbaik menghiburku apa?',
+  'Kata-kata aku yang paling kamu ingat?',
+  'Kencan sempurna versi kamu kayak gimana?',
+  'Hal baru yang pengen kita coba bareng?',
+  'Kalau kita masak bareng, mau masak apa?',
+  'Hari pertama kita connect — apa yang kamu ingat?',
+  'Hal yang paling kamu kagumi dari aku?',
+  'Lagu buat slow dance bareng?',
+  'Musim favorit buat date?',
+  'Kalau aku jadi hewan, hewan apa?',
+  'Tradisi kecil yang pengen kamu mulai bareng aku?',
+  'Hal yang pengen kamu ucapin tapi jarang diucapin?',
+  'Akhir pekan ideal kita = ?',
+  'Satu hal yang kamu janjiin untuk kita?',
+  'Warna yang paling ngingetin kamu ke aku? Kenapa?',
+];
+const dayKey = () => new Date().toISOString().slice(0, 10);
+const todayQ = () => QUESTIONS[Math.floor(Date.now() / 86400000) % QUESTIONS.length];
+
+app.get('/api/home', auth, (req, res) => {
+  const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
+  if (!req.user.pair_id || !partner) return res.json({});
+  const day = dayKey();
+  const ans = store.answers(req.user.pair_id, day);
+  const pho = store.photos(req.user.pair_id, day);
+  const mine = ans.find(a => a.user_id === req.user.id)?.text || null;
+  res.json({
+    q: todayQ(),
+    myAnswer: mine,
+    theirAnswer: mine ? (ans.find(a => a.user_id === partner.id)?.text || null) : null, // reveal hanya setelah kamu jawab
+    myNote: store.noteOf(req.user.id)?.text || '',
+    theirNote: store.noteOf(partner.id)?.text || '',
+    photos: pho.map(p => ({ mine: p.user_id === req.user.id, img: p.img, caption: p.caption, ts: p.ts })),
+    streak: store.missStreak(req.user.pair_id),
+  });
+});
+
+app.post('/api/note', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  store.setNote(req.user.id, req.user.pair_id, String(req.body?.text || '').slice(0, 200));
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+app.post('/api/daily/answer', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  store.setAnswer(req.user.pair_id, dayKey(), req.user.id, String(req.body?.text || '').slice(0, 300));
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+app.post('/api/photo', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  const img = String(req.body?.img || '');
+  if (!img.startsWith('data:image/') || img.length > 400000) return res.status(400).json({ error: 'gambar terlalu besar' });
+  store.setPhoto(req.user.pair_id, dayKey(), req.user.id, img, String(req.body?.caption || '').slice(0, 100));
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
 });
 
 app.post('/api/ai/prefs', auth, (req, res) => {
