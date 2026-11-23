@@ -7,3 +7,10 @@ test/shots/
 test/dbg*.cjs
 server.log
 cloudflared.exe
+
+# Android build artifacts & generated web-asset copies
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+android/app/src/main/assets/public/

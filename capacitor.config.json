@@ -1,0 +1,8 @@
+{
+  "appId": "com.ryora.watch",
+  "appName": "Ryora Watch",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https"
+  }
+}

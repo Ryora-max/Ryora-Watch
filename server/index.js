@@ -157,7 +157,8 @@ app.get('/api/home', auth, (req, res) => {
     theirAnswer: mine ? (ans.find(a => a.user_id === partner.id)?.text || null) : null, // reveal hanya setelah kamu jawab
     myNote: store.noteOf(req.user.id)?.text || '',
     theirNote: store.noteOf(partner.id)?.text || '',
-    photos: pho.map(p => ({ mine: p.user_id === req.user.id, img: p.img, caption: p.caption, ts: p.ts })),
+    photos: pho.map(p => ({ mine: p.user_id === req.user.id, img: p.img, caption: p.caption, ts: p.ts, reacts: store.reactionsFor(req.user.pair_id, 'photo', day + ':' + p.user_id).map(r => ({ emoji: r.emoji, mine: r.user_id === req.user.id })) })),
+    answerReacts: store.reactionsFor(req.user.pair_id, 'answer', day).map(r => ({ emoji: r.emoji, mine: r.user_id === req.user.id })),
     streak: store.missStreak(req.user.pair_id),
     recap: {
       miss: store.missCount(req.user.pair_id, req.user.id, weekAgo.getTime()) + store.missCount(req.user.pair_id, partner.id, weekAgo.getTime()),
@@ -191,6 +192,15 @@ app.delete('/api/bucket/:id', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
   store.delBucket(req.user.pair_id, req.params.id);
   io.to(req.user.pair_id).emit('bucket:changed');
+  res.json({ ok: true });
+});
+
+app.post('/api/react', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const { type, tid, emoji } = req.body || {};
+  if (!['answer', 'photo', 'memory'].includes(type) || !tid) return res.status(400).json({ error: 'invalid' });
+  store.setReaction(req.user.pair_id, type, String(tid).slice(0, 60), req.user.id, emoji ? String(emoji).slice(0, 8) : null);
+  io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
 });
 
@@ -250,17 +260,25 @@ app.delete('/api/voice/:id', auth, (req, res) => {
 app.get('/api/wrapped', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
   const now = new Date();
-  const since = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const yearly = req.query.period === 'year';
+  const since = yearly ? new Date(now.getFullYear(), 0, 1).getTime() : new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const s = store.monthStats(req.user.pair_id, since);
   const partner = store.partnerOf(req.user);
   res.json({
-    month: now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    month: yearly ? 'Tahun ' + now.getFullYear() : now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
     me: req.user.name, partner: partner?.name,
     days: Math.floor((Date.now() - store.pairOf(req.user.id).created_at) / 86400000) + 1,
     ...s,
     miss_me: s.miss_by.find(x => x.from_user === req.user.id)?.c || 0,
     miss_them: s.miss_by.find(x => x.from_user === partner?.id)?.c || 0,
   });
+});
+
+app.get('/api/export', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const partner = store.partnerOf(req.user);
+  res.setHeader('Content-Disposition', 'attachment; filename="ryora-export.json"');
+  res.json({ exported_at: new Date().toISOString(), names: [req.user.name, partner?.name], ...store.exportPair(req.user.pair_id) });
 });
 
 app.post('/api/note', auth, (req, res) => {

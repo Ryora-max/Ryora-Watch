@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS voices (
   id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
   audio TEXT, dur INTEGER, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS reactions (
+  pair_id TEXT, target_type TEXT, target_id TEXT, user_id TEXT,
+  emoji TEXT, ts INTEGER,
+  PRIMARY KEY (pair_id, target_type, target_id, user_id)
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -171,6 +176,21 @@ export const store = {
     db.prepare('DELETE FROM voices WHERE pair_id=? AND id NOT IN (SELECT id FROM voices WHERE pair_id=? ORDER BY ts DESC LIMIT 20)').run(pairId, pairId);
   },
   delVoice: (pairId, vid, uid) => db.prepare('DELETE FROM voices WHERE pair_id=? AND id=? AND user_id=?').run(pairId, vid, uid),
+  setReaction: (pairId, type, tid, uid, emoji) => {
+    if (emoji) db.prepare('INSERT OR REPLACE INTO reactions (pair_id,target_type,target_id,user_id,emoji,ts) VALUES (?,?,?,?,?,?)').run(pairId, type, tid, uid, emoji, Date.now());
+    else db.prepare('DELETE FROM reactions WHERE pair_id=? AND target_type=? AND target_id=? AND user_id=?').run(pairId, type, tid, uid);
+  },
+  reactionsFor: (pairId, type, tid) => db.prepare('SELECT user_id, emoji FROM reactions WHERE pair_id=? AND target_type=? AND target_id=?').all(pairId, type, tid),
+  exportPair: (pairId) => ({
+    schedules: db.prepare('SELECT title,note,start_time,end_time FROM schedules WHERE pair_id=?').all(pairId),
+    notes: db.prepare('SELECT user_id,text,ts FROM notes WHERE pair_id=?').all(pairId),
+    answers: db.prepare('SELECT day,user_id,text,ts FROM answers WHERE pair_id=?').all(pairId),
+    photos: db.prepare('SELECT day,user_id,img,caption,ts FROM photos WHERE pair_id=?').all(pairId),
+    memories: db.prepare('SELECT user_id,img,caption,ts FROM memories WHERE pair_id=?').all(pairId),
+    voices: db.prepare('SELECT user_id,audio,dur,ts FROM voices WHERE pair_id=?').all(pairId),
+    bucket: db.prepare('SELECT text,done,ts FROM bucket WHERE pair_id=?').all(pairId),
+    miss_events: db.prepare('SELECT from_user,pattern,ts FROM miss_events WHERE pair_id=?').all(pairId),
+  }),
   monthStats: (pairId, since) => ({
     miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,
     miss_by: db.prepare('SELECT from_user, COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),
@@ -189,5 +209,6 @@ export const store = {
     db.prepare('DELETE FROM bucket WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM memories WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM voices WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM reactions WHERE pair_id=?').run(pairId);
   },
 };

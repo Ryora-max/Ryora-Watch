@@ -1,5 +1,12 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const REACTS = ['❤️', '😂', '😭', '👍'];
+const reactRow = (type, reacts = [], tid) => {
+  const groups = {};
+  reacts.forEach(r => { (groups[r.emoji] = groups[r.emoji] || { n: 0, mine: false }).n++; if (r.mine) groups[r.emoji].mine = true; });
+  return `<div class="hreact" data-t="${type}"${tid ? ` data-tid="${tid}"` : ''}>` + REACTS.map(e => `<button data-e="${e}" class="${groups[e]?.mine ? 'on' : ''}">${e}${groups[e]?.n ? `<i>${groups[e].n}</i>` : ''}</button>`).join('') + '</div>';
+};
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let token = localStorage.getItem('cw_token');
@@ -497,12 +504,13 @@ async function renderHome(v) {
       <div class="hchip">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>
       ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 12))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
       <div class="hchip" id="hMiss">💓 kangen</div>
+      <div class="hchip" id="hWrap2">📊 rekap</div>
     </div>
     <div class="hcard">
       <div class="hlabel">❓ Pertanyaan hari ini</div>
       <div class="hq">${esc(d.q || '')}</div>
       ${!answered ? `<div class="hqin"><input id="hans" placeholder="Jawabanmu…" maxlength="200"><button id="hansBtn" class="mini">Kirim</button></div><div class="hsub">jawaban dia kebuka setelah kamu jawab</div>`
-        : both ? `<div class="hans"><b>${esc(me.user.name)}:</b> ${esc(d.myAnswer)}</div><div class="hans theirs"><b>${esc(p.name)}:</b> ${esc(d.theirAnswer)}</div>`
+        : both ? `<div class="hans"><b>${esc(me.user.name)}:</b> ${esc(d.myAnswer)}</div><div class="hans theirs"><b>${esc(p.name)}:</b> ${esc(d.theirAnswer)}</div>` + reactRow('answer', d.answerReacts, todayKey())
         : `<div class="hans"><b>Kamu:</b> ${esc(d.myAnswer)}</div><div class="hsub">menunggu ${esc(p.name)} jawab… 🤫</div>`}
     </div>
     <div class="hcard">
@@ -513,7 +521,7 @@ async function renderHome(v) {
     <div class="hcard">
       <div class="hlabel">📸 Foto hari ini</div>
       <div class="hphotos" id="hphotos">` +
-        (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(p.name)}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span></div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
+        (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(p.name)}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
       `</div>
       <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" hidden></label>
     </div>
@@ -535,7 +543,15 @@ async function renderHome(v) {
         <div><b>${d.recap.ans}</b><span>❓ jawaban</span></div>
       </div><button id="hWrap" class="ghost" style="margin-top:10px;font-size:13px">📊 Kartu rekap ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</button></div>` : ''}
   </div>`;
-  $('#hWrap') && ($('#hWrap').onclick = wrappedModal);
+  $('#hWrap') && ($('#hWrap').onclick = () => wrappedModal());
+  $('#hWrap2') && ($('#hWrap2').onclick = () => wrappedModal());
+  v.querySelectorAll('.hreact button').forEach(b => b.onclick = async () => {
+    const row = b.closest('.hreact');
+    const tid = row.dataset.tid || todayKey();
+    const on = !b.classList.contains('on');
+    await api('/react', { method: 'POST', body: { type: row.dataset.t, tid, emoji: on ? b.dataset.e : null } });
+    renderHome(v);
+  });
   $('#hNext').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="sched"]').classList.add('on'); show('sched'); };
   $('#hMiss').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="miss"]').classList.add('on'); show('miss'); };
   const ansBtn = $('#hansBtn');
@@ -1102,8 +1118,8 @@ async function loadVoices() {
 }
 
 // ---------- WRAPPED ----------
-async function wrappedModal() {
-  const w = await api('/wrapped');
+async function wrappedModal(period) {
+  const w = await api('/wrapped' + (period ? '?period=' + period : ''));
   if (!w || w.error) return toast('gagal load rekap');
   const el = document.createElement('div'); el.className = 'wmodal';
   el.innerHTML = `<div class="wcard">
@@ -1140,6 +1156,8 @@ function settings() {
     <button id="wpSet" class="ghost">🎨 Wallpaper jam</button>
     <button id="hist" class="ghost">💓 Riwayat kangen</button>
     <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
+    <button id="wrapYr" class="ghost">🗓️ Rekap ${new Date().getFullYear()}</button>
+    <button id="exportBtn" class="ghost">⬇️ Export semua data</button>
     ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
     <div class="muted" style="text-align:left;font-size:12px">Tema:</div>
     <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
@@ -1154,6 +1172,15 @@ function settings() {
     toast(`Mood kamu: ${b.dataset.m}`);
   });
   el.querySelector('#wrapBtn').onclick = () => { el.remove(); wrappedModal(); };
+  el.querySelector('#wrapYr').onclick = () => { el.remove(); wrappedModal('year'); };
+  el.querySelector('#exportBtn').onclick = async () => {
+    const r = await fetch('/api/export', { headers: { 'x-token': localStorage.cw_token } });
+    if (!r.ok) return toast('gagal export');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'ryora-export.json'; a.click();
+    URL.revokeObjectURL(a.href); toast('Data di-export ⬇️');
+  };
   el.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
     document.documentElement.dataset.theme = b.dataset.t;
     localStorage.cw_theme = b.dataset.t;
