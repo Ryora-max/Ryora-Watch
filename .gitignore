@@ -6,3 +6,4 @@ test/.dbg-*/
 test/shots/
 test/dbg*.cjs
 server.log
+cloudflared.exe
