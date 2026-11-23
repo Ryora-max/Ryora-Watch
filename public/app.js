@@ -558,6 +558,7 @@ function show(tab) {
   if (tab === 'ai') {
     v.innerHTML = `<div id="chat">
       <div class="aihead"><div class="aiavatar" id="aiprof" style="cursor:pointer">✦</div><div style="cursor:pointer" id="aiprof2"><b>${esc(me.user.ai_name || 'AI')}</b><span>${me.user.ai_name ? 'bestie AI-mu · tap = profil' : 'tap = kasih nama'}</span></div>
+      <button id="vmode" class="mini" title="Mode suara: ngobrol hands-free">🎙️</button>
       <button id="aiToggle" class="mini">${me.user.ai_enabled ? '🔊 ON' : '🔇 OFF'}</button></div>
       <div id="msgs"></div>
       <div id="chips"><button class="chip">Jadwal hari ini apa?</button><button class="chip">Dia di mana?</button><button class="chip">Cuaca sekarang gimana?</button><button class="chip">Lagi kangen nih</button></div>
@@ -574,6 +575,18 @@ function show(tab) {
       toast(me.user.ai_enabled ? 'Suara AI aktif' : 'Suara AI dimatikan');
     };
     $('#aiprof').onclick = aiProfile; $('#aiprof2').onclick = aiProfile;
+    $('#vmode').onclick = () => {
+      voiceMode = !voiceMode;
+      $('#vmode').classList.toggle('on', voiceMode);
+      if (voiceMode) {
+        if (!me.user.ai_enabled) { me.user.ai_enabled = true; api('/ai/toggle', { method: 'POST', body: { on: true } }); $('#aiToggle').textContent = '🔊 ON'; }
+        toast(`🎙️ Mode suara — ngobrol terus sama ${aiName()}, ketuk lagi buat berhenti`, 4000);
+        try { aiRec?.start(); $('#micBtn').classList.add('rec'); } catch {}
+      } else {
+        try { aiRec?.stop(); speechSynthesis?.cancel(); ttsAudio?.pause(); } catch {}
+        toast('Mode suara mati');
+      }
+    };
     return setupMic('#micBtn', '#cin');
   }
 }
@@ -1129,15 +1142,22 @@ async function sendChat() {
   const i = chatMsgs.findIndex(m => m.typing);
   if (i >= 0) chatMsgs.splice(i, 1, { role: 'ai', text: reply, ts: Date.now() });
   renderMsgs();
-  if (me.user.ai_enabled) speak(reply);
+  if (me.user.ai_enabled) speak(reply, () => {
+    // voice mode: abis jawab → mic nyala lagi buat lanjut ngobrol
+    if (voiceMode && currentTab === 'ai') {
+      try { aiRec?.start(); $('#micBtn')?.classList.add('rec'); } catch {}
+    }
+  });
 }
 
+let voiceMode = false, aiRec = null;
 function setupMic(btnSel, inputSel) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const btn = $(btnSel);
   if (!SR) { btn.disabled = true; return; }
   const rec = new SR(); rec.lang = 'id-ID'; rec.interimResults = false;
-  btn.onclick = () => { btn.classList.add('rec'); rec.start(); };
+  aiRec = rec;
+  btn.onclick = () => { btn.classList.add('rec'); try { rec.start(); } catch {} };
   rec.onresult = (e) => { $(inputSel).value = e.results[0][0].transcript; sendChat(); };
   rec.onend = rec.onerror = () => btn.classList.remove('rec');
 }
@@ -1199,29 +1219,31 @@ function pickVoice() {
   return byGender || pool[0];
 }
 let ttsAudio = null;
-function speak(text) {
+function speak(text, onend) {
   const clean = text
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu, '')
     .replace(/[*_`~#]/g, '')
     .replace(/\s{2,}/g, ' ').trim();
-  if (!clean) return;
+  if (!clean) return onend?.();
   try { speechSynthesis?.cancel(); } catch {}
   ttsAudio?.pause(); ttsAudio = null;
   const g = me?.user?.ai_gender || 'cewe';
   fetch('/api/tts?g=' + g + '&t=' + encodeURIComponent(clean.slice(0, 380)), { headers: { 'x-token': localStorage.cw_token } })
     .then(async r => {
-      if (!r.ok) return speakBrowser(clean);
+      if (!r.ok) return speakBrowser(clean, onend);
       const a = new Audio(URL.createObjectURL(await r.blob()));
       ttsAudio = a;
-      a.onended = () => { URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; };
-      a.onerror = () => speakBrowser(clean);
-      a.play().catch(() => speakBrowser(clean));
+      let called = false;
+      const done = () => { if (called) return; called = true; URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; onend?.(); };
+      a.onended = done;
+      a.onerror = () => speakBrowser(clean, onend);
+      a.play().catch(() => speakBrowser(clean, onend));
     })
-    .catch(() => speakBrowser(clean));
+    .catch(() => speakBrowser(clean, onend));
 }
-function speakBrowser(clean) {
+function speakBrowser(clean, onend) {
   try {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) { onend?.(); return; }
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(clean); u.lang = 'id-ID';
     const v = pickVoice();
@@ -1229,8 +1251,12 @@ function speakBrowser(clean) {
     u.pitch = +(localStorage.cw_pitch || VOICE_PITCH[me?.user?.ai_gender] || VOICE_PITCH.cewe);
     u.rate = +(localStorage.cw_rate || 0.98);
     u.volume = 1;
+    let called = false;
+    const done = () => { if (called) return; called = true; onend?.(); };
+    u.onend = u.onerror = done;
     speechSynthesis.speak(u);
-  } catch {}
+    setTimeout(done, 20000); // safety: jangan stuck kalau onend nggak ke-call
+  } catch { onend?.(); }
 }
 
 // ---------- WALLPAPER MENU (dari app, seperti companion watch app) ----------

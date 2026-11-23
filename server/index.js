@@ -5,6 +5,7 @@ import { store } from './store.js';
 import { aiChat } from './ai.js';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 const webpush = createRequire(import.meta.url)('web-push');
 
@@ -42,7 +43,11 @@ const auth = (req, res, next) => {
 };
 
 // --- Auth & Pairing ---
+const regAttempts = new Map(); // ip -> {n, reset} — anti spam akun
 app.post('/api/register', (req, res) => {
+  const now = Date.now(), ip = req.ip || 'x', a = regAttempts.get(ip);
+  if (a && now < a.reset && a.n >= 20) return res.status(429).json({ error: 'terlalu banyak — coba lagi nanti' });
+  regAttempts.set(ip, { n: (a && now < a.reset ? a.n : 0) + 1, reset: a && now < a.reset ? a.reset : now + 3600000 });
   const { name } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'nama wajib' });
   const u = store.createUser(name.trim().slice(0, 30));
@@ -298,19 +303,36 @@ app.post('/api/react', auth, (req, res) => {
 // --- TTS neural (suara cowo/cewe beneran beda — Edge voices Indonesia) ---
 const TTS_VOICES = { cowo: 'id-ID-ArdiNeural', cewe: 'id-ID-GadisNeural' };
 const lastTts = new Map();
+const TTS_CACHE = 'data/tts-cache';
+try { fs.mkdirSync(TTS_CACHE, { recursive: true }); } catch {}
+const ttsKey = (g, t) => createHash('sha1').update(g + '|' + t).digest('hex') + '.mp3';
 app.get('/api/tts', auth, async (req, res) => {
   const text = String(req.query.t || '').slice(0, 400);
   if (!text) return res.status(400).json({ error: 'kosong' });
   const now = Date.now();
   if (now - (lastTts.get(req.user.id) || 0) < 800) return res.status(429).json({ error: 'terlalu cepat' });
   lastTts.set(req.user.id, now);
+  const voice = req.query.g === 'cowo' ? 'cowo' : 'cewe';
+  const key = ttsKey(voice, text);
+  const file = `${TTS_CACHE}/${key}`;
+  try { if (fs.existsSync(file)) return res.type('audio/mpeg').send(fs.readFileSync(file)); } catch {}
   try {
     const tts = new MsEdgeTTS();
-    await tts.setMetadata(TTS_VOICES[req.query.g === 'cowo' ? 'cowo' : 'cewe'], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    await tts.setMetadata(TTS_VOICES[voice], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     const { audioStream } = tts.toStream(text, { rate: '+0%' });
-    res.setHeader('Content-Type', 'audio/mpeg');
-    audioStream.pipe(res);
-    audioStream.on('error', () => { try { res.end(); } catch {} });
+    const chunks = [];
+    audioStream.on('data', c => chunks.push(c));
+    audioStream.on('end', () => {
+      const buf = Buffer.concat(chunks);
+      try {
+        fs.writeFileSync(file, buf);
+        // batasi cache 300 file terbaru
+        const files = fs.readdirSync(TTS_CACHE);
+        if (files.length > 300) files.map(f => [f, fs.statSync(`${TTS_CACHE}/${f}`).mtimeMs]).sort((a, b) => a[1] - b[1]).slice(0, files.length - 300).forEach(([f]) => fs.unlinkSync(`${TTS_CACHE}/${f}`));
+      } catch {}
+      res.type('audio/mpeg').send(buf);
+    });
+    audioStream.on('error', () => res.status(502).json({ error: 'tts gagal' }));
   } catch { res.status(502).json({ error: 'tts gagal' }); }
 });
 

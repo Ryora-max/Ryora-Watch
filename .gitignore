@@ -14,3 +14,4 @@ android/.gradle/
 android/build/
 android/local.properties
 android/app/src/main/assets/public/
+data/tts-cache/
