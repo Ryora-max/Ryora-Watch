@@ -1,4 +1,5 @@
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let token = localStorage.getItem('cw_token');
@@ -149,7 +150,7 @@ async function mainUI() {
   <header>
     <div class="who"><span class="avatar">${esc(me.partner.name[0].toUpperCase())}</span>
       <div class="whoinfo"><div class="pname">${esc(me.partner.name)}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
-      <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span></div></div>
+      <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span> <span id="pstatus" class="stag">${esc(me.partner.status || '')}</span></div></div>
     </div>
     <button id="gear" class="iconbtn">⚙️</button>
   </header>
@@ -210,6 +211,28 @@ function connectSocket() {
   socket.on('miss:sent', () => { navigator.vibrate?.(80); toast('💓 terkirim!'); refreshMissStat(); if (currentTab === 'miss') loadMissTab(); });
   socket.on('home:changed', () => { if (currentTab === 'home') renderHome($('#view')); });
   socket.on('bucket:changed', () => { if (currentTab === 'sched') loadBucket(); });
+  socket.on('partner:statustext', ({ text, uid }) => {
+    if (uid === me.user.id) return;
+    me.partner.status = text;
+    const el = $('#pstatus'); if (el) el.textContent = text;
+    const el2 = $('#hstatus'); if (el2) el2.textContent = text;
+  });
+  socket.on('care:receive', ({ from, kind }) => {
+    navigator.vibrate?.([200, 100, 200]);
+    ding();
+    const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🫂 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from}: ${label}` }); } catch {}
+    toast(`${from} — ${label}`, 4000);
+  });
+  socket.on('touch:partner', ({ on }) => {
+    const el = $('#touchState'); if (el) el.textContent = on ? `${me.partner.name} juga nyentuh… 👀` : '';
+  });
+  socket.on('touch:match', () => {
+    navigator.vibrate?.([400, 150, 400]);
+    ding(); heartRain(30);
+    const el = $('#touchState'); if (el) el.textContent = '💞 NYENTUH BARENG!';
+    toast('💞 Kalian nyentuh bareng!');
+  });
   socket.on('partner:mood', ({ mood, uid }) => {
     if (uid === me.user.id) return;
     me.partner.mood = mood;
@@ -372,9 +395,27 @@ function show(tab) {
       <button id="missBig"><span class="hb">💓</span><span id="tapN"></span></button>
       <div class="muted">tap berkali-kali buat sinyal lebih kuat (maks ×5)</div>
       <div class="missstats" id="missStats"></div>
+      <div class="msect"><b>🤲 Sentuh bareng</b>
+        <div class="muted" style="margin:2px 0 8px">tahan tombol — kalau dia juga tahan, kalian "nyentuh" 💞</div>
+        <button id="touchBtn" class="touchbtn">✋ Tahan di sini</button>
+        <div class="muted" id="touchState" style="margin-top:8px;min-height:18px"></div>
+      </div>
+      <div class="msect"><b>🫂 Pings sayang</b>
+        <div class="caregrid">
+          <button class="care" data-k="makan">🍚<span>Udah makan?</span></button>
+          <button class="care" data-k="minum">💧<span>Minum air!</span></button>
+          <button class="care" data-k="peluk">🫂<span>Peluk virtual</span></button>
+          <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
+        </div>
+      </div>
       <div class="msect"><b>Riwayat</b><div class="histlist" id="missHist"></div></div>
     </div>`;
     $('#missBig').onclick = missTap;
+    $$('.care').forEach(b => b.onclick = () => { socket.emit('care:send', { kind: b.dataset.k }); toast(`Terkirim ke ${me.partner.name} ${b.textContent.trim().slice(0, 2)}`); });
+    const tb = $('#touchBtn');
+    const tOn = () => { socket.emit('touch:start'); $('#touchState').textContent = `menunggu ${me.partner.name}…`; tb.classList.add('on'); };
+    const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
+    tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     return loadMissTab();
   }
   if (tab === 'sched') {
@@ -434,6 +475,7 @@ async function renderHome(v) {
       <span class="avatar big">${esc(p.name[0].toUpperCase())}</span>
       <div class="pinfo"><b>${esc(p.name)} ${p.mood || ''}</b>
         <span>${partnerOnline ? '🟢 online' : '⚪ ' + (partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline')}${distText() ? ' · 📍 ' + distText() : ''}</span>
+        <span id="hstatus" class="stag">${esc(p.status || '')}</span>
       </div>
       <div class="hdays">💕<b>${daysTogether()}</b><span>hari</span></div>
     </div>
@@ -462,6 +504,16 @@ async function renderHome(v) {
       `</div>
       <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" hidden></label>
     </div>
+    <div class="hcard" id="meetCard">
+      <div class="hlabel">✈️ Countdown ketemu</div>
+      ${me.pair.next_meet ? `<div class="meetbig">${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? `<b>${dd}</b> hari lagi — ${new Date(me.pair.next_meet).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })} 🎉` : 'HARI INI KETEMUAN! 🎉🎉'; })()}</div>` : '<div class="hsub">atur tanggal ketemu kalian berikutnya</div>'}
+      <div class="hqin"><input id="meetDate" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">Simpan</button></div>
+    </div>
+    <div class="hcard">
+      <div class="hlabel">🖼️ Kenangan <span class="hsub">(album kalian)</span></div>
+      <div class="hphotos" id="hmems"></div>
+      <div class="hqin"><label class="hphotobtn" style="flex:1;margin:0">📷 Tambah kenangan<input type="file" id="mfile" accept="image/*" hidden></label></div>
+    </div>
     ${d.recap ? `<div class="hcard"><div class="hlabel">📊 Minggu ini</div>
       <div class="recap">
         <div><b>${d.recap.miss}</b><span>💓 kangen</span></div>
@@ -480,6 +532,34 @@ async function renderHome(v) {
   $('#hnoteBtn').onclick = async () => {
     await api('/note', { method: 'POST', body: { text: $('#hnote').value.trim() } });
     toast('Catatan tersimpan 💌');
+  };
+  $('#meetBtn').onclick = async () => {
+    const v2 = $('#meetDate').value; if (!v2) return;
+    const ts = new Date(v2 + 'T12:00:00').getTime();
+    await api('/meet', { method: 'POST', body: { ts } });
+    me.pair.next_meet = ts; renderHome(v); toast('Tanggal ketemu disimpan ✈️');
+  };
+  api('/memories').then(mems => {
+    const el = $('#hmems'); if (!el) return;
+    el.innerHTML = mems.length ? mems.slice(0, 4).map(m => `<div class="hphoto"><img src="${m.img}"><span>${m.mine ? 'Kamu' : esc(m.from_name || '?')}${m.caption ? ' · ' + esc(m.caption) : ''}${m.mine ? `<b class="mdel" data-id="${m.id}">×</b>` : ''}</span></div>`).join('') + (mems.length > 4 ? `<div class="hphoto more"><span>+${mems.length - 4} lagi</span></div>` : '')
+      : '<div class="hsub">belum ada kenangan — abadikan momen pertama 📷</div>';
+    el.querySelectorAll('.mdel').forEach(x => x.onclick = async e => { e.stopPropagation(); await api('/memory/' + x.dataset.id, { method: 'DELETE' }); renderHome(v); });
+  });
+  $('#mfile').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 800 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const data = c.toDataURL('image/jpeg', .72);
+      const caption = prompt('Caption (opsional):') || '';
+      api('/memory', { method: 'POST', body: { img: data, caption } }).then(r => {
+        if (r.ok) { toast('Kenangan tersimpan 🖼️'); renderHome(v); } else toast(r.error || 'gagal simpan');
+      });
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(f);
   };
   $('#hfile').onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -970,6 +1050,7 @@ function settings() {
     <div class="muted">Sejak ${new Date(me.pair.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} · hari ke-${daysTogether()}</div>
     <div class="muted" style="text-align:left;font-size:12px">Mood kamu sekarang:</div>
     <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
+    <div class="hqin" style="margin-top:8px"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
     <button id="aipSet" class="ghost">✦ Profil bestie (${esc(me.user.ai_name || 'belum dinamai')})</button>
     <button id="wpSet" class="ghost">🎨 Wallpaper jam</button>
     <button id="hist" class="ghost">💓 Riwayat kangen</button>
@@ -990,6 +1071,12 @@ function settings() {
     document.documentElement.dataset.theme = light ? '' : 'light';
     localStorage.cw_theme = light ? '' : 'light';
     e.target.textContent = light ? '☀️ Mode terang' : '🌙 Mode gelap';
+  };
+  el.querySelector('#statusBtn').onclick = async () => {
+    const t = el.querySelector('#statusIn').value.trim();
+    me.user.status = t;
+    await api('/status', { method: 'POST', body: { text: t } });
+    toast(t ? `Status: "${t}"` : 'Status dihapus');
   };
   el.querySelector('#hist').onclick = missHistory;
   el.querySelector('#aipSet').onclick = () => { el.remove(); aiProfile(); };

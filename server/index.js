@@ -13,7 +13,8 @@ app.use(express.json({ limit: '3mb' }));
 app.use(express.static('public'));
 
 const auth = (req, res, next) => {
-  const u = store.userByToken(req.headers['x-token']);
+  const token = req.headers['x-token'];
+  const u = token ? store.userByToken(token) : null;
   if (!u) return res.status(401).json({ error: 'unauthorized' });
   req.user = u; next();
 };
@@ -52,7 +53,7 @@ app.post('/api/pair/break', auth, (req, res) => {
 app.get('/api/me', auth, (req, res) => {
   const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
   const pair = req.user.pair_id ? store.pairOf(req.user.id) : null;
-  res.json({ user: { id: req.user.id, name: req.user.name, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
+  res.json({ user: { id: req.user.id, name: req.user.name, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
 });
 
 app.post('/api/ai/toggle', auth, (req, res) => {
@@ -193,6 +194,39 @@ app.delete('/api/bucket/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Status text, countdown ketemu, kenangan ---
+app.post('/api/status', auth, (req, res) => {
+  const s = String(req.body?.text || '').slice(0, 40);
+  store.setStatus(req.user.id, s);
+  if (req.user.pair_id) io.to(req.user.pair_id).emit('partner:statustext', { text: s, uid: req.user.id });
+  res.json({ ok: true });
+});
+
+app.post('/api/meet', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.setNextMeet(req.user.pair_id, req.body?.ts || null);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+app.get('/api/memories', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.memories(req.user.pair_id).map(m => ({ ...m, mine: m.user_id === req.user.id })));
+});
+app.post('/api/memory', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const img = String(req.body?.img || '');
+  if (!img.startsWith('data:image/') || img.length > 400000) return res.status(400).json({ error: 'gambar terlalu besar' });
+  store.addMemory(req.user.pair_id, req.user.id, img, String(req.body?.caption || '').slice(0, 120));
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+app.delete('/api/memory/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delMemory(req.user.pair_id, req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
 app.post('/api/note', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setNote(req.user.id, req.user.pair_id, String(req.body?.text || '').slice(0, 200));
@@ -256,6 +290,7 @@ app.get('/api/ai/history', auth, (req, res) => {
 const online = new Map(); // userId -> socketId
 const batt = new Map();   // userId -> battery %
 const lastMiss = new Map();
+const touching = new Set(); // userId yang lagi tahan sentuh
 
 io.use((socket, next) => {
   const u = store.userByToken(socket.handshake.auth?.token);
@@ -295,8 +330,29 @@ io.on('connection', (socket) => {
     socket.emit('miss:sent');
   });
 
+  socket.on('care:send', ({ kind }) => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('c' + u.id) || 0) < 8000) return;
+    lastMiss.set('c' + u.id, now);
+    socket.to(u.pair_id).emit('care:receive', { from: u.name, kind: String(kind).slice(0, 20) });
+  });
+
+  socket.on('touch:start', () => {
+    if (!u.pair_id) return;
+    touching.add(u.id);
+    const partner = store.partnerOf(u);
+    socket.to(u.pair_id).emit('touch:partner', { on: true });
+    if (partner && touching.has(partner.id)) io.to(u.pair_id).emit('touch:match');
+  });
+  socket.on('touch:end', () => {
+    touching.delete(u.id);
+    if (u.pair_id) socket.to(u.pair_id).emit('touch:partner', { on: false });
+  });
+
   socket.on('disconnect', () => {
     online.delete(u.id);
+    touching.delete(u.id);
     store.setLastSeen(u.id);
     if (u.pair_id) socket.to(u.pair_id).emit('partner:status', { online: false, lastSeen: Date.now() });
   });

@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS bucket (
   id TEXT PRIMARY KEY, pair_id TEXT, text TEXT,
   done INTEGER DEFAULT 0, created_by TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
+  img TEXT, caption TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -55,6 +59,8 @@ try { db.exec('ALTER TABLE users ADD COLUMN mood TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN last_seen INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN ai_name TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN ai_gender TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN status TEXT'); } catch {}
+try { db.exec('ALTER TABLE pairs ADD COLUMN next_meet INTEGER'); } catch {}
 
 const id = () => randomBytes(8).toString('hex');
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -73,6 +79,8 @@ export const store = {
   setLastSeen: (uid, ts) => db.prepare('UPDATE users SET last_seen=? WHERE id=?').run(ts || Date.now(), uid),
   setAiName: (uid, name) => db.prepare('UPDATE users SET ai_name=? WHERE id=?').run(name, uid),
   setAiGender: (uid, g) => db.prepare('UPDATE users SET ai_gender=? WHERE id=?').run(g, uid),
+  setStatus: (uid, s) => db.prepare('UPDATE users SET status=? WHERE id=?').run(s, uid),
+  setNextMeet: (pairId, ts) => db.prepare('UPDATE pairs SET next_meet=? WHERE id=?').run(ts, pairId),
 
   addChatMsg: (uid, role, text) => db.prepare('INSERT INTO chat_msgs (user_id,role,text,ts) VALUES (?,?,?,?)').run(uid, role, text, Date.now()),
   chatHistory: (uid, limit = 12) => db.prepare('SELECT role,text FROM chat_msgs WHERE user_id=? ORDER BY id DESC LIMIT ?').all(uid, limit).reverse(),
@@ -108,7 +116,7 @@ export const store = {
     store.breakPairAll?.(pairId);
   },
   pairOf: (userId) => db.prepare('SELECT p.* FROM pairs p JOIN users u ON u.pair_id=p.id WHERE u.id=?').get(userId),
-  partnerOf: (user) => db.prepare('SELECT id,name,mood,last_seen FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
+  partnerOf: (user) => db.prepare('SELECT id,name,mood,last_seen,status FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
 
   addSchedule: (s) => { db.prepare('INSERT INTO schedules (id,pair_id,title,note,start_time,end_time,notify,created_by) VALUES (?,?,?,?,?,?,?,?)')
     .run(s.id || id(), s.pair_id, s.title, s.note || null, s.start, s.end || null, s.notify ? 1 : 0, s.by || null); },
@@ -150,11 +158,15 @@ export const store = {
   delBucket: (pairId, bid) => db.prepare('DELETE FROM bucket WHERE pair_id=? AND id=?').run(pairId, bid),
   photosSince: (pairId, dayKey) => db.prepare('SELECT COUNT(*) c FROM photos WHERE pair_id=? AND day>=?').get(pairId, dayKey).c,
   answersSince: (pairId, dayKey) => db.prepare('SELECT COUNT(*) c FROM answers WHERE pair_id=? AND day>=?').get(pairId, dayKey).c,
+  memories: (pairId, limit = 60) => db.prepare('SELECT m.*, u.name AS from_name FROM memories m LEFT JOIN users u ON u.id=m.user_id WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, limit),
+  addMemory: (pairId, uid, img, caption) => db.prepare('INSERT INTO memories (id,pair_id,user_id,img,caption,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, img, caption, Date.now()),
+  delMemory: (pairId, mid, uid) => db.prepare('DELETE FROM memories WHERE pair_id=? AND id=? AND user_id=?').run(pairId, mid, uid),
 
   breakPairAll: (pairId) => {
     db.prepare('DELETE FROM notes WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM answers WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM photos WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM bucket WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM memories WHERE pair_id=?').run(pairId);
   },
 };
