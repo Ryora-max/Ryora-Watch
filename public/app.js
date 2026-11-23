@@ -474,7 +474,7 @@ function show(tab) {
       me.user.ai_enabled = !me.user.ai_enabled;
       await api('/ai/toggle', { method: 'POST', body: { on: me.user.ai_enabled } });
       e.target.textContent = me.user.ai_enabled ? '🔊 ON' : '🔇 OFF';
-      if (!me.user.ai_enabled) window.speechSynthesis?.cancel();
+      if (!me.user.ai_enabled) { window.speechSynthesis?.cancel(); ttsAudio?.pause(); }
       toast(me.user.ai_enabled ? 'Suara AI aktif' : 'Suara AI dimatikan');
     };
     $('#aiprof').onclick = aiProfile; $('#aiprof2').onclick = aiProfile;
@@ -1000,15 +1000,31 @@ function pickVoice() {
   const byGender = pool.find(v => (gender === 'cowo' ? MALE_V : FEMALE_V).test(v.name));
   return byGender || pool[0];
 }
+let ttsAudio = null;
 function speak(text) {
+  const clean = text
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu, '')
+    .replace(/[*_`~#]/g, '')
+    .replace(/\s{2,}/g, ' ').trim();
+  if (!clean) return;
+  try { speechSynthesis?.cancel(); } catch {}
+  ttsAudio?.pause(); ttsAudio = null;
+  const g = me?.user?.ai_gender || 'cewe';
+  fetch('/api/tts?g=' + g + '&t=' + encodeURIComponent(clean.slice(0, 380)), { headers: { 'x-token': localStorage.cw_token } })
+    .then(async r => {
+      if (!r.ok) return speakBrowser(clean);
+      const a = new Audio(URL.createObjectURL(await r.blob()));
+      ttsAudio = a;
+      a.onended = () => { URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; };
+      a.onerror = () => speakBrowser(clean);
+      a.play().catch(() => speakBrowser(clean));
+    })
+    .catch(() => speakBrowser(clean));
+}
+function speakBrowser(clean) {
   try {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
-    const clean = text
-      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu, '')
-      .replace(/[*_`~#]/g, '')
-      .replace(/\s{2,}/g, ' ').trim();
-    if (!clean) return;
     const u = new SpeechSynthesisUtterance(clean); u.lang = 'id-ID';
     const v = pickVoice();
     if (v) u.voice = v;

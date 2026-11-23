@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { store } from './store.js';
 import { aiChat } from './ai.js';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 const app = express();
 const http = createServer(app);
@@ -202,6 +203,25 @@ app.post('/api/react', auth, (req, res) => {
   store.setReaction(req.user.pair_id, type, String(tid).slice(0, 60), req.user.id, emoji ? String(emoji).slice(0, 8) : null);
   io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
+});
+
+// --- TTS neural (suara cowo/cewe beneran beda — Edge voices Indonesia) ---
+const TTS_VOICES = { cowo: 'id-ID-ArdiNeural', cewe: 'id-ID-GadisNeural' };
+const lastTts = new Map();
+app.get('/api/tts', auth, async (req, res) => {
+  const text = String(req.query.t || '').slice(0, 400);
+  if (!text) return res.status(400).json({ error: 'kosong' });
+  const now = Date.now();
+  if (now - (lastTts.get(req.user.id) || 0) < 800) return res.status(429).json({ error: 'terlalu cepat' });
+  lastTts.set(req.user.id, now);
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(TTS_VOICES[req.query.g === 'cowo' ? 'cowo' : 'cewe'], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(text, { rate: '+0%' });
+    res.setHeader('Content-Type', 'audio/mpeg');
+    audioStream.pipe(res);
+    audioStream.on('error', () => { try { res.end(); } catch {} });
+  } catch { res.status(502).json({ error: 'tts gagal' }); }
 });
 
 // --- Status text, countdown ketemu, kenangan ---
