@@ -1,0 +1,8 @@
+node_modules/
+.env
+data/
+nul
+test/.dbg-*/
+test/shots/
+test/dbg*.cjs
+server.log

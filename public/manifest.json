@@ -1,0 +1,11 @@
+{
+  "name": "Ryora Watch",
+  "short_name": "Ryora",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a2347",
+  "theme_color": "#123a6e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
