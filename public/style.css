@@ -286,9 +286,10 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
   background:#ffffff10; border-radius:14px; }
 .hdays b { font-size:20px; }
 .hdays span { font-size:10px; color:var(--dim); }
-.hchips { display:flex; gap:8px; }
-.hchip { flex:1; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px;
-  font-size:12px; font-weight:600; text-align:center; cursor:pointer; transition:transform .12s; }
+.hchips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+.hchip { flex:1 1 96px; max-width:150px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px;
+  font-size:12px; font-weight:600; text-align:center; cursor:pointer; transition:transform .12s;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hchip:active { transform:scale(.95); }
 .hlabel { font-size:12px; font-weight:700; letter-spacing:.6px; color:var(--accent); }
 .hq { font-size:16px; font-weight:600; line-height:1.45; }
