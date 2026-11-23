@@ -137,6 +137,12 @@ function fallback(ctx, msg) {
   ]);
 }
 
+// sapaan proaktif — langsung ke Gemini biar nggak ke-intercept dataReply
+export async function aiGreet(ctx, waktu, hint) {
+  const msg = `Tulis sapaan selamat ${waktu} buat ${ctx.user.name} — 1-2 kalimat hangat kayak sahabat, boleh sebut: ${hint}. Jangan pakai asterisk atau tanda kurung.`;
+  return gemini(ctx, msg);
+}
+
 export async function aiChat(user, partner, schedules, ctx, message) {
   const local = await dataReply(ctx, message);
   if (local) return { reply: local, source: 'local' };

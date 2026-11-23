@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS reactions (
 CREATE TABLE IF NOT EXISTS ai_facts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, fact TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS suit_results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, pair_id TEXT, winner_id TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -210,6 +213,21 @@ export const store = {
     db.prepare('SELECT user_id uid, dur, ts FROM voices WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('voice', r.uid, '🎤 pesan suara ' + r.dur + 'd', r.ts));
     db.prepare('SELECT text, done, created_by uid, ts FROM bucket WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('bucket', r.uid, (r.done ? '🪣✅ ' : '🪣 impian baru: ') + r.text.slice(0, 30), r.ts));
     return rows.sort((a, b) => b.ts - a.ts).slice(0, limit);
+  },
+  suitAdd: (pairId, winnerId) => db.prepare('INSERT INTO suit_results (pair_id,winner_id,ts) VALUES (?,?,?)').run(pairId, winnerId, Date.now()),
+  suitStats: (pairId) => db.prepare('SELECT winner_id, COUNT(*) n FROM suit_results WHERE pair_id=? GROUP BY winner_id').all(pairId),
+  activityDays: (pairId, since) => {
+    const days = {};
+    const add = ts => { const d = new Date(ts).toDateString(); days[d] = (days[d] || 0) + 1; };
+    const q = (sql) => db.prepare(sql).all(pairId, since).forEach(r => add(r.ts));
+    q('SELECT ts FROM miss_events WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM answers WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM photos WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM memories WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM voices WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM notes WHERE pair_id=? AND ts>?');
+    q('SELECT ts FROM bucket WHERE pair_id=? AND ts>?');
+    return days;
   },
   monthStats: (pairId, since) => ({
     miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,

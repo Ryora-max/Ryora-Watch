@@ -177,6 +177,16 @@ async function mainUI() {
   if (me.partnerBattery != null) $('#pbatt').textContent = ` ${me.partnerBattery}%`;
   schedCache = await api('/schedules');
   api('/ai/history').then(h => { if (h?.length && !chatMsgs.length) chatMsgs = h.map(m => ({ role: m.role === 'model' ? 'ai' : 'me', text: m.text, ts: m.ts })); }).catch(() => {});
+  // sapaan bestie sekali per hari
+  if (localStorage.cw_greeted !== new Date().toDateString()) {
+    localStorage.cw_greeted = new Date().toDateString();
+    api('/ai/greeting', { method: 'POST' }).then(g => {
+      if (g?.greeting) {
+        chatMsgs.push({ role: 'ai', text: g.greeting, ts: Date.now() });
+        toast(`✦ ${aiName()}: ${g.greeting.slice(0, 80)}`, 5000);
+      }
+    }).catch(() => {});
+  }
   connectSocket(); show('home'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
   if (location.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(location.hostname))
     banner('⚠️ GPS butuh HTTPS — buka via localhost atau tunnel (cloudflared/ngrok)');
@@ -330,7 +340,9 @@ function missTap() {
 }
 
 async function loadMissTab() {
-  const [s, hist] = await Promise.all([api('/miss/stats'), api('/miss/history')]);
+  const [s, hist, suit] = await Promise.all([api('/miss/stats'), api('/miss/history'), api('/suit/stats')]);
+  const sc = $('#suitScore');
+  if (sc && suit) sc.textContent = (suit.me || suit.them || suit.draw) ? `skor: kamu ${suit.me} · ${me.partner.name} ${suit.them}${suit.draw ? ' · seri ' + suit.draw : ''}` : '';
   const st = $('#missStats');
   if (st) st.innerHTML = `<div class="mstat"><b>${s.sent || 0}</b><span>kamu kirim</span></div>
     <div class="mstat"><b>${s.received || 0}</b><span>dia kirim</span></div>
@@ -449,6 +461,7 @@ function show(tab) {
           <button class="suit" data-h="✌️">✌️</button>
         </div>
         <div class="muted" id="suitState" style="margin-top:8px;min-height:18px"></div>
+        <div class="muted" id="suitScore" style="font-size:11px"></div>
       </div>
       <div class="msect"><b>🎤 Pesan suara</b>
         <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
@@ -1210,7 +1223,7 @@ async function loadVoices() {
 
 // ---------- WRAPPED ----------
 async function wrappedModal(period) {
-  const w = await api('/wrapped' + (period ? '?period=' + period : ''));
+  const [w, act] = await Promise.all([api('/wrapped' + (period ? '?period=' + period : '')), api('/activity')]);
   if (!w || w.error) return toast('gagal load rekap');
   const el = document.createElement('div'); el.className = 'wmodal';
   el.innerHTML = `<div class="wcard">
@@ -1226,11 +1239,26 @@ async function wrappedModal(period) {
       <div><b>${w.answers}</b><span>❓ jawaban</span></div>
     </div>
     <div class="wfoot">hari ke-${w.days} bareng · ${w.miss_me}x kamu kangen · ${w.miss_them}x dia kangen</div>
+    <div class="hmap" id="hmap"></div>
     <button id="wclose" class="ghost" style="margin-top:14px">Tutup</button>
   </div>`;
   document.body.appendChild(el);
   el.querySelector('#wclose').onclick = () => el.remove();
   el.onclick = e => { if (e.target === el) el.remove(); };
+  // heatmap 6 minggu terakhir (kayak GitHub)
+  const hm = el.querySelector('#hmap');
+  if (hm && act?.days) {
+    const cells = [];
+    const today = new Date();
+    const start = new Date(today); start.setDate(today.getDate() - today.getDay() - 35); // mulai Senin 5 minggu lalu
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const n = act.days[d.toDateString()] || 0;
+      const lvl = n === 0 ? 0 : n < 3 ? 1 : n < 6 ? 2 : n < 10 ? 3 : 4;
+      cells.push(`<i class="heat${d > today ? ' off' : ' lv' + lvl}" title="${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}: ${n} aktivitas"></i>`);
+    }
+    hm.innerHTML = cells.join('') + '<span>interaksi kalian 6 minggu terakhir</span>';
+  }
 }
 
 // ---------- SETTINGS ----------

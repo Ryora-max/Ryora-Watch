@@ -402,3 +402,11 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .suitrow{display:flex;gap:12px;justify-content:center;margin-top:4px}
 .suit{width:64px;height:64px;border-radius:50%;font-size:28px;background:var(--card);border:2px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.15);transition:transform .15s,border-color .15s}
 .suit.on{border-color:var(--accent);transform:scale(1.12);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent),0 4px 14px rgba(0,0,0,.15)}
+.hmap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;justify-items:center}
+.hmap i{width:100%;max-width:16px;aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.08);display:block}
+.hmap i.lv1{background:rgba(92,200,255,.3)}
+.hmap i.lv2{background:rgba(92,200,255,.55)}
+.hmap i.lv3{background:rgba(92,200,255,.8)}
+.hmap i.lv4{background:#5cc8ff;box-shadow:0 0 6px rgba(92,200,255,.6)}
+.hmap i.off{opacity:.15}
+.hmap span{grid-column:1/-1;font-size:10px;color:rgba(255,255,255,.5);margin-top:6px;text-align:center}

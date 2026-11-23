@@ -210,6 +210,45 @@ app.get('/api/weather', auth, async (req, res) => {
   res.json(out);
 });
 
+app.get('/api/suit/stats', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ me: 0, them: 0, draw: 0 });
+  const partner = store.partnerOf(req.user);
+  const rows = store.suitStats(req.user.pair_id);
+  const n = (id) => rows.find(r => r.winner_id === id)?.n || 0;
+  res.json({ me: n(req.user.id), them: partner ? n(partner.id) : 0, draw: n('draw') });
+});
+
+app.get('/api/activity', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ days: {} });
+  res.json({ days: store.activityDays(req.user.pair_id, Date.now() - 42 * 86400000) });
+});
+
+// sapaan pagi otomatis — dipanggil sekali per hari per device
+app.post('/api/ai/greeting', auth, async (req, res) => {
+  const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
+  const h = new Date().getHours();
+  const waktu = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 19 ? 'sore' : 'malam';
+  const schedules = req.user.pair_id ? store.schedules(req.user.pair_id) : [];
+  const ctx = {
+    user: req.user, partner, schedules,
+    loc: partner ? store.latestLoc(partner.id) : null,
+    aiName: req.user.ai_name, aiGender: req.user.ai_gender,
+    history: [], facts: store.facts(req.user.id, 5),
+  };
+  const today = schedules.filter(s => new Date(s.start_time).toDateString() === new Date().toDateString());
+  const hint = today.length ? `jadwal kalian hari ini: ${today.map(s => s.title).join(', ')}` : 'jadwal kosong';
+  let greeting = null;
+  try {
+    const { aiGreet } = await import('./ai.js');
+    greeting = await aiGreet(ctx, waktu, hint);
+  } catch {}
+  if (!greeting) {
+    greeting = `Selamat ${waktu}, ${req.user.name}! ☀️ ${today.length ? `btw hari ini ada ${today[0].title} loh` : 'semoga harinya lembut ya'}`;
+  }
+  store.addChatMsg(req.user.id, 'model', greeting);
+  res.json({ greeting });
+});
+
 app.post('/api/react', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
   const { type, tid, emoji } = req.body || {};
@@ -461,6 +500,7 @@ io.on('connection', (socket) => {
       const a = cur[u.id].hand, b = cur[partner.id].hand;
       const beats = (x, y) => (x === '✊' && y === '✌️') || (x === '✋' && y === '✊') || (x === '✌️' && y === '✋');
       const winner = a === b ? 'draw' : beats(a, b) ? u.id : partner.id;
+      store.suitAdd(u.pair_id, winner);
       io.to(u.pair_id).emit('suit:result', {
         winner, names: { [u.id]: u.name, [partner.id]: partner.name },
         picks: { [u.id]: a, [partner.id]: b },
