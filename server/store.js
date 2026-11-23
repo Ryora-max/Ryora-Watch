@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
   img TEXT, caption TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS voices (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
+  audio TEXT, dur INTEGER, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -161,6 +165,22 @@ export const store = {
   memories: (pairId, limit = 60) => db.prepare('SELECT m.*, u.name AS from_name FROM memories m LEFT JOIN users u ON u.id=m.user_id WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, limit),
   addMemory: (pairId, uid, img, caption) => db.prepare('INSERT INTO memories (id,pair_id,user_id,img,caption,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, img, caption, Date.now()),
   delMemory: (pairId, mid, uid) => db.prepare('DELETE FROM memories WHERE pair_id=? AND id=? AND user_id=?').run(pairId, mid, uid),
+  voices: (pairId, limit = 20) => db.prepare('SELECT v.*, u.name AS from_name FROM voices v LEFT JOIN users u ON u.id=v.user_id WHERE v.pair_id=? ORDER BY v.ts DESC LIMIT ?').all(pairId, limit),
+  addVoice: (pairId, uid, audio, dur) => {
+    db.prepare('INSERT INTO voices (id,pair_id,user_id,audio,dur,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, audio, dur, Date.now());
+    db.prepare('DELETE FROM voices WHERE pair_id=? AND id NOT IN (SELECT id FROM voices WHERE pair_id=? ORDER BY ts DESC LIMIT 20)').run(pairId, pairId);
+  },
+  delVoice: (pairId, vid, uid) => db.prepare('DELETE FROM voices WHERE pair_id=? AND id=? AND user_id=?').run(pairId, vid, uid),
+  monthStats: (pairId, since) => ({
+    miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,
+    miss_by: db.prepare('SELECT from_user, COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),
+    photos: db.prepare('SELECT COUNT(*) c FROM photos WHERE pair_id=? AND ts>=?').get(pairId, since).c,
+    memories: db.prepare('SELECT COUNT(*) c FROM memories WHERE pair_id=? AND ts>=?').get(pairId, since).c,
+    voices: db.prepare('SELECT COUNT(*) c FROM voices WHERE pair_id=? AND ts>=?').get(pairId, since).c,
+    schedules: db.prepare('SELECT COUNT(*) c FROM schedules WHERE pair_id=? AND start_time>=?').get(pairId, since).c,
+    answers: db.prepare("SELECT COUNT(DISTINCT day) c FROM answers WHERE pair_id=? AND day>=?").get(pairId, new Date(since).toISOString().slice(0, 10)).c,
+    bucket_done: db.prepare('SELECT COUNT(*) c FROM bucket WHERE pair_id=? AND done=1').get(pairId).c,
+  }),
 
   breakPairAll: (pairId) => {
     db.prepare('DELETE FROM notes WHERE pair_id=?').run(pairId);
@@ -168,5 +188,6 @@ export const store = {
     db.prepare('DELETE FROM photos WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM bucket WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM memories WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM voices WHERE pair_id=?').run(pairId);
   },
 };

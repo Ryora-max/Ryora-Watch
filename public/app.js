@@ -217,6 +217,12 @@ function connectSocket() {
     const el = $('#pstatus'); if (el) el.textContent = text;
     const el2 = $('#hstatus'); if (el2) el2.textContent = text;
   });
+  socket.on('voice:new', ({ from, dur }) => {
+    ding();
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `🎤 ${from} kirim pesan suara (${dur}s)` }); } catch {}
+    toast(`🎤 ${from} kirim pesan suara (${dur}s)`);
+    loadVoices();
+  });
   socket.on('care:receive', ({ from, kind }) => {
     navigator.vibrate?.([200, 100, 200]);
     ding();
@@ -408,9 +414,16 @@ function show(tab) {
           <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
         </div>
       </div>
+      <div class="msect"><b>🎤 Pesan suara</b>
+        <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
+        <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
+        <div id="vlist" style="margin-top:6px"></div>
+      </div>
       <div class="msect"><b>Riwayat</b><div class="histlist" id="missHist"></div></div>
     </div>`;
     $('#missBig').onclick = missTap;
+    setupVoice();
+    loadVoices();
     $$('.care').forEach(b => b.onclick = () => { socket.emit('care:send', { kind: b.dataset.k }); toast(`Terkirim ke ${me.partner.name} ${b.textContent.trim().slice(0, 2)}`); });
     const tb = $('#touchBtn');
     const tOn = () => { socket.emit('touch:start'); $('#touchState').textContent = `menunggu ${me.partner.name}…`; tb.classList.add('on'); };
@@ -520,8 +533,9 @@ async function renderHome(v) {
         <div><b>${d.recap.sched}</b><span>📅 jadwal</span></div>
         <div><b>${d.recap.photo}</b><span>📸 foto</span></div>
         <div><b>${d.recap.ans}</b><span>❓ jawaban</span></div>
-      </div></div>` : ''}
+      </div><button id="hWrap" class="ghost" style="margin-top:10px;font-size:13px">📊 Kartu rekap ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</button></div>` : ''}
   </div>`;
+  $('#hWrap') && ($('#hWrap').onclick = wrappedModal);
   $('#hNext').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="sched"]').classList.add('on'); show('sched'); };
   $('#hMiss').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="miss"]').classList.add('on'); show('miss'); };
   const ansBtn = $('#hansBtn');
@@ -1041,6 +1055,77 @@ function cropWallpaper(file) {
   img.src = url;
 }
 
+// ---------- VOICE NOTES ----------
+let vrec = null, vchunks = [], vstart = 0, vtimer = null;
+function setupVoice() {
+  const btn = $('#vrec'), st = $('#vstate');
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      vrec = new MediaRecorder(stream); vchunks = []; vstart = Date.now();
+      vrec.ondataavailable = e => vchunks.push(e.data);
+      vrec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const dur = (Date.now() - vstart) / 1000;
+        if (dur < 0.5) { st.textContent = 'terlalu pendek — tahan lebih lama'; return; }
+        const blob = new Blob(vchunks, { type: vrec.mimeType || 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const r = await api('/voice', { method: 'POST', body: { audio: reader.result, dur } });
+          st.textContent = r.ok ? `Terkirim ke ${me.partner.name} 🎤` : (r.error || 'gagal kirim');
+          if (r.ok) loadVoices();
+        };
+        reader.readAsDataURL(blob);
+      };
+      vrec.start();
+      btn.classList.add('on'); st.textContent = '🔴 merekam… lepas buat kirim';
+      vtimer = setTimeout(() => { if (vrec?.state === 'recording') vrec.stop(); }, 30000);
+    } catch { st.textContent = 'butuh izin mikrofon 🎤'; }
+  };
+  const stop = () => { clearTimeout(vtimer); if (vrec?.state === 'recording') vrec.stop(); btn.classList.remove('on'); st.textContent = 'mengirim…'; };
+  btn.onpointerdown = start; btn.onpointerup = stop; btn.onpointerleave = () => { if (vrec?.state === 'recording') stop(); }; btn.onpointercancel = stop;
+}
+
+async function loadVoices() {
+  const list = await api('/voices');
+  const el = $('#vlist'); if (!el) return;
+  el.innerHTML = list.length ? list.map(v => `<div class="vrow">
+    <button class="vplay" data-id="${v.id}">▶</button>
+    <span class="vinfo"><b>${v.mine ? 'Kamu' : esc(v.from_name || '?')}</b> · ${v.dur}s · ${agoText(v.ts)}</span>
+    ${v.mine ? `<button class="vdel" data-id="${v.id}">×</button>` : ''}
+  </div>`).join('') : '<div class="muted">belum ada pesan suara</div>';
+  el.querySelectorAll('.vplay').forEach(b => b.onclick = () => {
+    const v = list.find(x => x.id === b.dataset.id);
+    if (v) { b.textContent = '⏸'; const a = new Audio(v.audio); a.onended = () => b.textContent = '▶'; a.play(); }
+  });
+  el.querySelectorAll('.vdel').forEach(b => b.onclick = async () => { await api('/voice/' + b.dataset.id, { method: 'DELETE' }); loadVoices(); });
+}
+
+// ---------- WRAPPED ----------
+async function wrappedModal() {
+  const w = await api('/wrapped');
+  if (!w || w.error) return toast('gagal load rekap');
+  const el = document.createElement('div'); el.className = 'wmodal';
+  el.innerHTML = `<div class="wcard">
+    <div class="wlogo">🌊 Ryora</div>
+    <div class="wmonth">${w.month}</div>
+    <div class="wnames">${esc(w.me)} 💙 ${esc(w.partner || '?')}</div>
+    <div class="wgrid">
+      <div><b>${w.miss}</b><span>💓 kangen</span></div>
+      <div><b>${w.memories}</b><span>🖼️ kenangan</span></div>
+      <div><b>${w.photos}</b><span>📸 foto</span></div>
+      <div><b>${w.voices}</b><span>🎤 suara</span></div>
+      <div><b>${w.schedules}</b><span>📅 jadwal</span></div>
+      <div><b>${w.answers}</b><span>❓ jawaban</span></div>
+    </div>
+    <div class="wfoot">hari ke-${w.days} bareng · ${w.miss_me}x kamu kangen · ${w.miss_them}x dia kangen</div>
+    <button id="wclose" class="ghost" style="margin-top:14px">Tutup</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#wclose').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+}
+
 // ---------- SETTINGS ----------
 function settings() {
   if ($('.settings')) return;
@@ -1054,8 +1139,10 @@ function settings() {
     <button id="aipSet" class="ghost">✦ Profil bestie (${esc(me.user.ai_name || 'belum dinamai')})</button>
     <button id="wpSet" class="ghost">🎨 Wallpaper jam</button>
     <button id="hist" class="ghost">💓 Riwayat kangen</button>
+    <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
     ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
-    <button id="theme" class="ghost">${document.documentElement.dataset.theme === 'light' ? '🌙 Mode gelap' : '☀️ Mode terang'}</button>
+    <div class="muted" style="text-align:left;font-size:12px">Tema:</div>
+    <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
     <button id="cls" class="ghost">Tutup</button>`;
   $('#view').appendChild(el);
@@ -1066,12 +1153,12 @@ function settings() {
     await api('/mood', { method: 'POST', body: { mood: b.dataset.m } });
     toast(`Mood kamu: ${b.dataset.m}`);
   });
-  el.querySelector('#theme').onclick = (e) => {
-    const light = document.documentElement.dataset.theme === 'light';
-    document.documentElement.dataset.theme = light ? '' : 'light';
-    localStorage.cw_theme = light ? '' : 'light';
-    e.target.textContent = light ? '☀️ Mode terang' : '🌙 Mode gelap';
-  };
+  el.querySelector('#wrapBtn').onclick = () => { el.remove(); wrappedModal(); };
+  el.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
+    document.documentElement.dataset.theme = b.dataset.t;
+    localStorage.cw_theme = b.dataset.t;
+    el.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
+  });
   el.querySelector('#statusBtn').onclick = async () => {
     const t = el.querySelector('#statusIn').value.trim();
     me.user.status = t;

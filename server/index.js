@@ -227,6 +227,42 @@ app.delete('/api/memory/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Voice notes & rekap bulanan ---
+app.get('/api/voices', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.voices(req.user.pair_id).map(v => ({ ...v, mine: v.user_id === req.user.id })));
+});
+app.post('/api/voice', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const audio = String(req.body?.audio || '');
+  const dur = Math.min(30, Math.max(1, Math.round(req.body?.dur || 0)));
+  if (!audio.startsWith('data:audio/') || audio.length > 900000) return res.status(400).json({ error: 'audio terlalu besar' });
+  store.addVoice(req.user.pair_id, req.user.id, audio, dur);
+  io.to(req.user.pair_id).emit('voice:new', { from: req.user.name, dur });
+  res.json({ ok: true });
+});
+app.delete('/api/voice/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delVoice(req.user.pair_id, req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/wrapped', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const now = new Date();
+  const since = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const s = store.monthStats(req.user.pair_id, since);
+  const partner = store.partnerOf(req.user);
+  res.json({
+    month: now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    me: req.user.name, partner: partner?.name,
+    days: Math.floor((Date.now() - store.pairOf(req.user.id).created_at) / 86400000) + 1,
+    ...s,
+    miss_me: s.miss_by.find(x => x.from_user === req.user.id)?.c || 0,
+    miss_them: s.miss_by.find(x => x.from_user === partner?.id)?.c || 0,
+  });
+});
+
 app.post('/api/note', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setNote(req.user.id, req.user.pair_id, String(req.body?.text || '').slice(0, 200));
