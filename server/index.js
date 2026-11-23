@@ -148,6 +148,8 @@ app.get('/api/home', auth, (req, res) => {
   const ans = store.answers(req.user.pair_id, day);
   const pho = store.photos(req.user.pair_id, day);
   const mine = ans.find(a => a.user_id === req.user.id)?.text || null;
+  const weekAgo = new Date(Date.now() - 7 * 86400000);
+  const weekKey = weekAgo.toISOString().slice(0, 10);
   res.json({
     q: todayQ(),
     myAnswer: mine,
@@ -156,7 +158,39 @@ app.get('/api/home', auth, (req, res) => {
     theirNote: store.noteOf(partner.id)?.text || '',
     photos: pho.map(p => ({ mine: p.user_id === req.user.id, img: p.img, caption: p.caption, ts: p.ts })),
     streak: store.missStreak(req.user.pair_id),
+    recap: {
+      miss: store.missCount(req.user.pair_id, req.user.id, weekAgo.getTime()) + store.missCount(req.user.pair_id, partner.id, weekAgo.getTime()),
+      sched: store.schedules(req.user.pair_id).filter(s => s.start_time >= weekAgo.getTime() && s.start_time <= Date.now()).length,
+      photo: store.photosSince(req.user.pair_id, weekKey),
+      ans: store.answersSince(req.user.pair_id, weekKey),
+    },
   });
+});
+
+// --- Bucket list bersama ---
+app.get('/api/bucket', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.bucket(req.user.pair_id));
+});
+app.post('/api/bucket', auth, (req, res) => {
+  if (!req.user.pair_id || !req.body?.text?.trim()) return res.status(400).json({ error: 'invalid' });
+  store.addBucket(req.user.pair_id, req.body.text.trim().slice(0, 120), req.user.id);
+  io.to(req.user.pair_id).emit('bucket:changed');
+  res.json({ ok: true });
+});
+app.post('/api/bucket/:id/toggle', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  const item = store.bucket(req.user.pair_id).find(b => b.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'not found' });
+  store.setBucketDone(req.user.pair_id, item.id, !item.done);
+  io.to(req.user.pair_id).emit('bucket:changed');
+  res.json({ ok: true });
+});
+app.delete('/api/bucket/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delBucket(req.user.pair_id, req.params.id);
+  io.to(req.user.pair_id).emit('bucket:changed');
+  res.json({ ok: true });
 });
 
 app.post('/api/note', auth, (req, res) => {

@@ -1,0 +1,27 @@
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  fs.mkdirSync('test/shots', { recursive: true });
+  const b = await puppeteer.launch({ headless: 'new' });
+  const ctx = await b.createBrowserContext();
+  const p = await ctx.newPage();
+  p.on('pageerror', e => console.log('PAGEERR', e.message));
+  await p.setViewport({ width: 390, height: 844 });
+  const t1 = await (await fetch('http://localhost:3000/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'F1' + Date.now() % 9999 }) })).json();
+  const t2 = await (await fetch('http://localhost:3000/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'F2' + Date.now() % 9999 }) })).json();
+  const code = (await (await fetch('http://localhost:3000/api/pair/create', { method: 'POST', headers: { 'x-token': t1.token } })).json()).code;
+  await fetch('http://localhost:3000/api/pair/join', { method: 'POST', headers: { 'x-token': t2.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+  await fetch('http://localhost:3000/api/bucket', { method: 'POST', headers: { 'x-token': t1.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Nonton aurora bareng' }) });
+  await fetch('http://localhost:3000/api/schedules', { method: 'POST', headers: { 'x-token': t1.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Makan bareng', start: Date.now() + 86400000 }) });
+  await p.evaluateOnNewDocument(tok => { localStorage.cw_token = tok; localStorage.cw_setup_done = '1'; }, t1.token);
+  await p.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+  await p.waitForSelector('.home', { timeout: 10000 }); await sleep(800);
+  await p.screenshot({ path: 'test/shots/f-home.png' });
+  await p.click('[data-t="sched"]'); await sleep(600);
+  await p.screenshot({ path: 'test/shots/f-sched.png' });
+  await p.click('#segCal'); await sleep(500);
+  await p.screenshot({ path: 'test/shots/f-cal.png' });
+  console.log('DONE');
+  await b.close();
+})().catch(e => { console.log('ERR', e.message); process.exit(1); });

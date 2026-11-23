@@ -209,6 +209,7 @@ function connectSocket() {
   });
   socket.on('miss:sent', () => { navigator.vibrate?.(80); toast('💓 terkirim!'); refreshMissStat(); if (currentTab === 'miss') loadMissTab(); });
   socket.on('home:changed', () => { if (currentTab === 'home') renderHome($('#view')); });
+  socket.on('bucket:changed', () => { if (currentTab === 'sched') loadBucket(); });
   socket.on('partner:mood', ({ mood, uid }) => {
     if (uid === me.user.id) return;
     me.partner.mood = mood;
@@ -377,13 +378,25 @@ function show(tab) {
     return loadMissTab();
   }
   if (tab === 'sched') {
-    v.innerHTML = `<div class="list"><div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div><div id="slist"></div></div>`;
+    v.innerHTML = `<div class="list">
+      <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
+      <div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div>
+      <div id="scal" style="display:none"></div>
+      <div id="slist"></div>
+      <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
+        <div class="hqin"><input id="bucketIn" placeholder="Impian bareng (misal: nonton aurora)" maxlength="120"><button id="bucketAdd" class="mini">+</button></div>
+        <div id="blist"></div></div>
+    </div>`;
     const nx = new Date(Date.now() + 3600000);
     $('#stime').min = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#stime').value = new Date(nx.getTime() - nx.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#sadd').onclick = addSchedule;
     $('#st').onkeydown = e => { if (e.key === 'Enter') addSchedule(); };
-    return loadSchedules();
+    $('#segList').onclick = () => { $('#segList').classList.add('on'); $('#segCal').classList.remove('on'); $('#scal').style.display = 'none'; $('#slist').style.display = ''; };
+    $('#segCal').onclick = () => { $('#segCal').classList.add('on'); $('#segList').classList.remove('on'); $('#slist').style.display = 'none'; $('#scal').style.display = ''; renderCal(); };
+    $('#bucketAdd').onclick = addBucket;
+    $('#bucketIn').onkeydown = e => { if (e.key === 'Enter') addBucket(); };
+    loadSchedules(); loadBucket(); return;
   }
   if (tab === 'ai') {
     v.innerHTML = `<div id="chat">
@@ -426,8 +439,9 @@ async function renderHome(v) {
     </div>
     <div class="hchips">
       <div class="hchip">🔥 streak ${d.streak || 0} hari</div>
-      ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 16))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
-      <div class="hchip" id="hMiss">💓 kirim kangen</div>
+      <div class="hchip">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>
+      ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 12))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
+      <div class="hchip" id="hMiss">💓 kangen</div>
     </div>
     <div class="hcard">
       <div class="hlabel">❓ Pertanyaan hari ini</div>
@@ -448,6 +462,13 @@ async function renderHome(v) {
       `</div>
       <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" hidden></label>
     </div>
+    ${d.recap ? `<div class="hcard"><div class="hlabel">📊 Minggu ini</div>
+      <div class="recap">
+        <div><b>${d.recap.miss}</b><span>💓 kangen</span></div>
+        <div><b>${d.recap.sched}</b><span>📅 jadwal</span></div>
+        <div><b>${d.recap.photo}</b><span>📸 foto</span></div>
+        <div><b>${d.recap.ans}</b><span>❓ jawaban</span></div>
+      </div></div>` : ''}
   </div>`;
   $('#hNext').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="sched"]').classList.add('on'); show('sched'); };
   $('#hMiss').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="miss"]').classList.add('on'); show('miss'); };
@@ -569,6 +590,14 @@ function tickWatch() {
 }
 
 const daysTogether = () => Math.floor((Date.now() - me.pair.created_at) / 86400000) + 1;
+const nextMonthsary = () => {
+  const c = new Date(me.pair.created_at), n = new Date();
+  let next = new Date(n.getFullYear(), n.getMonth(), c.getDate());
+  if (next.getTime() <= n.getTime()) next = new Date(n.getFullYear(), n.getMonth() + 1, c.getDate());
+  const elapsed = Math.max(0, (n.getFullYear() - c.getFullYear()) * 12 + (n.getMonth() - c.getMonth()) - (n.getDate() < c.getDate() ? 1 : 0));
+  const months = elapsed + 1;
+  return { days: Math.ceil((next - n) / 86400000), months };
+};
 
 function renderWatchface() {
   const el = $('#wface'); if (!el) return;
@@ -700,6 +729,54 @@ async function addSchedule() {
   schedCache = await api('/schedules');
   loadSchedules();
   toast('Jadwal ditambahkan 📅');
+}
+
+// ---------- CALENDAR VIEW ----------
+let calDate = new Date();
+function renderCal() {
+  const el = $('#scal'); if (!el) return;
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+  const withSched = new Set(schedCache.filter(s => { const d = new Date(s.start_time); return d.getFullYear() === y && d.getMonth() === m; }).map(s => new Date(s.start_time).getDate()));
+  let html = `<div class="calhead"><button id="calPrev" class="mini ghost">‹</button><b>${calDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b><button id="calNext" class="mini ghost">›</button></div><div class="calgrid">`;
+  for (const d of ['Mi','Se','Se','Ra','Ka','Ju','Sa']) html += `<div class="calwd">${d}</div>`;
+  for (let i = 0; i < first; i++) html += '<div></div>';
+  const today = new Date();
+  for (let d = 1; d <= days; d++) {
+    const isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+    html += `<button class="calday ${isToday ? 'today' : ''} ${withSched.has(d) ? 'has' : ''}" data-d="${d}">${d}${withSched.has(d) ? '<i></i>' : ''}</button>`;
+  }
+  el.innerHTML = html + '</div>';
+  el.querySelector('#calPrev').onclick = () => { calDate = new Date(y, m - 1, 1); renderCal(); };
+  el.querySelector('#calNext').onclick = () => { calDate = new Date(y, m + 1, 1); renderCal(); };
+  el.querySelectorAll('.calday').forEach(b => b.onclick = () => {
+    const picked = new Date(y, m, +b.dataset.d, 12, 0);
+    const dayScheds = schedCache.filter(s => new Date(s.start_time).toDateString() === picked.toDateString());
+    if (dayScheds.length) { $('#segList').click(); $('#slist').scrollTop = 0; }
+    else {
+      $('#segList').click();
+      const pad = n => String(n).padStart(2, '0');
+      $('#stime').value = `${y}-${pad(m + 1)}-${pad(+b.dataset.d)}T19:00`;
+      toast('Tanggal dipilih — isi judul lalu Tambah');
+    }
+  });
+}
+
+// ---------- BUCKET LIST ----------
+async function loadBucket() {
+  const el = $('#blist'); if (!el) return;
+  const items = await api('/bucket');
+  el.innerHTML = items.length ? items.map(b => `<div class="bitem ${b.done ? 'done' : ''}">
+    <button class="bcheck" data-id="${b.id}">${b.done ? '✅' : '⬜'}</button><span>${esc(b.text)}</span>
+    <button class="bdel" data-id="${b.id}">×</button></div>`).join('')
+    : '<div class="hsub" style="padding:6px 2px">Belum ada impian — tulis yang pertama 🪣</div>';
+  el.querySelectorAll('.bcheck').forEach(b => b.onclick = async () => { await api(`/bucket/${b.dataset.id}/toggle`, { method: 'POST' }); loadBucket(); });
+  el.querySelectorAll('.bdel').forEach(b => b.onclick = async () => { await api('/bucket/' + b.dataset.id, { method: 'DELETE' }); loadBucket(); });
+}
+async function addBucket() {
+  const t = $('#bucketIn').value.trim(); if (!t) return;
+  await api('/bucket', { method: 'POST', body: { text: t } });
+  $('#bucketIn').value = ''; loadBucket();
 }
 
 async function checkReminders() {

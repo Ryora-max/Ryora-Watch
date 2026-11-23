@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS photos (
   pair_id TEXT, day TEXT, user_id TEXT, img TEXT, caption TEXT, ts INTEGER,
   PRIMARY KEY (pair_id, day, user_id)
 );
+CREATE TABLE IF NOT EXISTS bucket (
+  id TEXT PRIMARY KEY, pair_id TEXT, text TEXT,
+  done INTEGER DEFAULT 0, created_by TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -140,9 +144,17 @@ export const store = {
   setPhoto: (pairId, day, uid, img, caption) => db.prepare('INSERT INTO photos (pair_id,day,user_id,img,caption,ts) VALUES (?,?,?,?,?,?) ON CONFLICT(pair_id,day,user_id) DO UPDATE SET img=excluded.img,caption=excluded.caption,ts=excluded.ts').run(pairId, day, uid, img, caption, Date.now()),
   photos: (pairId, day) => db.prepare('SELECT user_id,img,caption,ts FROM photos WHERE pair_id=? AND day=?').all(pairId, day),
 
+  bucket: (pairId) => db.prepare('SELECT * FROM bucket WHERE pair_id=? ORDER BY done, ts').all(pairId),
+  addBucket: (pairId, text, by) => db.prepare('INSERT INTO bucket (id,pair_id,text,created_by,ts) VALUES (?,?,?,?,?)').run(id(), pairId, text, by, Date.now()),
+  setBucketDone: (pairId, bid, done) => db.prepare('UPDATE bucket SET done=? WHERE pair_id=? AND id=?').run(done ? 1 : 0, pairId, bid),
+  delBucket: (pairId, bid) => db.prepare('DELETE FROM bucket WHERE pair_id=? AND id=?').run(pairId, bid),
+  photosSince: (pairId, dayKey) => db.prepare('SELECT COUNT(*) c FROM photos WHERE pair_id=? AND day>=?').get(pairId, dayKey).c,
+  answersSince: (pairId, dayKey) => db.prepare('SELECT COUNT(*) c FROM answers WHERE pair_id=? AND day>=?').get(pairId, dayKey).c,
+
   breakPairAll: (pairId) => {
     db.prepare('DELETE FROM notes WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM answers WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM photos WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM bucket WHERE pair_id=?').run(pairId);
   },
 };

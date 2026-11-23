@@ -299,3 +299,31 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
   background:linear-gradient(transparent,#000a); color:#fff; }
 .hphotobtn { display:block; text-align:center; padding:12px; border-radius:12px; border:1px dashed #5cc8ff55;
   color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; }
+
+/* ---------- CALENDAR ---------- */
+.segtoggle { display:flex; gap:6px; margin-bottom:12px; }
+.segtoggle button { flex:1; padding:9px; font-size:13px; border-radius:12px; background:var(--card); color:var(--dim); border:1px solid var(--line); box-shadow:none; }
+.segtoggle button.on { background:var(--grad); color:#fff; }
+.calhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.calhead b { font-size:15px; }
+.calhead .mini { width:auto; padding:4px 14px; font-size:18px; }
+.calgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.calwd { font-size:10px; color:var(--dim); text-align:center; font-weight:700; padding:4px 0; }
+.calday { aspect-ratio:1; border-radius:10px; background:transparent; color:var(--text); font-size:13px; padding:0; box-shadow:none; border:1px solid transparent; position:relative; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.calday:hover { background:#ffffff14; }
+.calday.today { border-color:var(--accent); font-weight:800; color:var(--accent); }
+.calday.has { background:#ffffff10; }
+.calday i { width:5px; height:5px; border-radius:50%; background:var(--accent2); display:block; margin-top:2px; }
+
+/* ---------- BUCKET ---------- */
+.bitem { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; font-size:14px; margin-top:8px; }
+.bitem.done span { text-decoration:line-through; opacity:.5; }
+.bitem span { flex:1; }
+.bcheck { width:auto; background:transparent; box-shadow:none; padding:0; font-size:19px; }
+.bdel { width:auto; background:transparent; box-shadow:none; color:var(--dim); font-size:18px; padding:0 4px; }
+
+/* ---------- RECAP ---------- */
+.recap { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.recap>div { background:#ffffff10; border-radius:12px; padding:10px 4px; text-align:center; display:flex; flex-direction:column; gap:2px; }
+.recap b { font-size:19px; color:var(--accent); }
+.recap span { font-size:10px; color:var(--dim); }
