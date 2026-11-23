@@ -188,6 +188,18 @@ async function mainUI() {
     }).catch(() => {});
   }
   connectSocket(); show('home'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
+  // Web Push — subscribe kalau notif udah diizinin
+  (async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') return;
+      const { key } = await api('/push/vapid'); if (!key) return;
+      const reg = await navigator.serviceWorker.ready;
+      const b64 = key.replace(/-/g, '+').replace(/_/g, '/');
+      const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw });
+      await api('/push/sub', { method: 'POST', body: { sub: sub.toJSON() } });
+    } catch {}
+  })();
   if (location.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(location.hostname))
     banner('⚠️ GPS butuh HTTPS — buka via localhost atau tunnel (cloudflared/ngrok)');
   clearInterval(remindTimer);
@@ -274,6 +286,12 @@ function connectSocket() {
     toast(msg, 4000);
     suitMyPick = null;
     $$('.suit').forEach(x => x.classList.remove('on'));
+  });
+  socket.on('letter:new', ({ from }) => {
+    ding(); navigator.vibrate?.([250, 100, 250]);
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `💌 ${from} nulis surat buat kamu` }); } catch {}
+    toast(`💌 ${from} nulis surat buat kamu!`, 5000);
+    loadLetters();
   });
   socket.on('tod:card', ({ mode, text, from }) => {
     ding(); navigator.vibrate?.(200);
@@ -490,6 +508,10 @@ function show(tab) {
         <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
         <div id="vlist" style="margin-top:6px"></div>
       </div>
+      <div class="msect"><b>💌 Surat</b>
+        <button id="lwrite" class="touchbtn" style="border-color:#ffd166">✍️ Tulis surat buat ${esc(me.partner.name)}</button>
+        <div id="llist" style="margin-top:8px"></div>
+      </div>
       <div class="msect"><b>Riwayat</b><div class="histlist" id="missHist"></div></div>
     </div>`;
     $('#missBig').onclick = missTap;
@@ -502,6 +524,8 @@ function show(tab) {
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
     setupDoodle();
+    $('#lwrite').onclick = letterWrite;
+    loadLetters();
     $$('.suit').forEach(b => b.onclick = () => {
       suitMyPick = b.dataset.h;
       $$('.suit').forEach(x => x.classList.toggle('on', x === b));
@@ -1397,6 +1421,56 @@ async function wrappedModal(period) {
     }
     hm.innerHTML = cells.join('') + '<span>interaksi kalian 6 minggu terakhir</span>';
   }
+}
+
+// ---------- SURAT CINTA ----------
+async function loadLetters() {
+  const list = await api('/letters');
+  const el = $('#llist'); if (!el) return;
+  el.innerHTML = list.length ? list.map(l => `<div class="lrow" data-id="${l.id}">
+    <span class="licon">💌</span><div class="linfo"><b>${esc(l.title || 'Surat untukmu')}</b><span>${l.mine ? 'Kamu' : esc(l.from_name)} · ${agoText(l.ts)}</span></div>
+    ${l.mine ? `<button class="ldel" data-id="${l.id}">×</button>` : ''}</div>`).join('')
+    : '<div class="muted" style="font-size:12px">belum ada surat — tulis yang pertama 💌</div>';
+  el.querySelectorAll('.lrow').forEach(r => r.onclick = e => {
+    if (e.target.classList.contains('ldel')) return;
+    const l = list.find(x => x.id === r.dataset.id);
+    if (l) letterRead(l);
+  });
+  el.querySelectorAll('.ldel').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    await api('/letter/' + b.dataset.id, { method: 'DELETE' }); loadLetters();
+  });
+}
+function letterRead(l) {
+  const el = document.createElement('div'); el.className = 'wmodal';
+  el.innerHTML = `<div class="lettercard">
+    <div class="lhead">💌</div>
+    <h3>${esc(l.title || 'Surat untukmu')}</h3>
+    <div class="lmeta">${l.mine ? 'dari Kamu' : 'dari ' + esc(l.from_name)} · ${new Date(l.ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    <div class="lbody">${esc(l.text)}</div>
+    <button id="lrclose" class="ghost">Tutup</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('#lrclose').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+}
+function letterWrite() {
+  const el = document.createElement('div'); el.className = 'wmodal';
+  el.innerHTML = `<div class="lettercard">
+    <div class="lhead">✍️</div>
+    <input id="ltitle" placeholder="Judul surat (opsional)" maxlength="60">
+    <textarea id="ltext" placeholder="Tulis perasaanmu di sini… panjang boleh, dia cuma kamu yang baca 💕" maxlength="4000" rows="8"></textarea>
+    <button id="lsend">Kirim surat 💌</button>
+    <button id="lcancel" class="ghost">Batal</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('#lcancel').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.querySelector('#lsend').onclick = async () => {
+    const text = el.querySelector('#ltext').value.trim();
+    if (!text) return toast('Tulis sesuatu dulu ya');
+    const r = await api('/letter', { method: 'POST', body: { title: el.querySelector('#ltitle').value.trim(), text } });
+    if (r.ok) { toast(`Surat terkirim ke ${me.partner.name} 💌`); el.remove(); loadLetters(); }
+    else toast('gagal kirim');
+  };
 }
 
 // ---------- SETTINGS ----------

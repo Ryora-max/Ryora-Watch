@@ -70,6 +70,12 @@ CREATE TABLE IF NOT EXISTS suit_results (
 CREATE TABLE IF NOT EXISTS mood_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, pair_id TEXT, mood TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS push_subs (
+  user_id TEXT, endpoint TEXT PRIMARY KEY, auth TEXT, p256dh TEXT, ts INTEGER
+);
+CREATE TABLE IF NOT EXISTS letters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, pair_id TEXT, user_id TEXT, title TEXT, text TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -217,6 +223,12 @@ export const store = {
     db.prepare('SELECT text, done, created_by uid, ts FROM bucket WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('bucket', r.uid, (r.done ? '🪣✅ ' : '🪣 impian baru: ') + r.text.slice(0, 30), r.ts));
     return rows.sort((a, b) => b.ts - a.ts).slice(0, limit);
   },
+  addPush: (uid, sub) => db.prepare('INSERT OR REPLACE INTO push_subs (user_id,endpoint,auth,p256dh,ts) VALUES (?,?,?,?,?)').run(uid, sub.endpoint, sub.keys.auth, sub.keys.p256dh, Date.now()),
+  delPush: (endpoint) => db.prepare('DELETE FROM push_subs WHERE endpoint=?').run(endpoint),
+  pushFor: (uid) => db.prepare('SELECT * FROM push_subs WHERE user_id=?').all(uid),
+  letters: (pairId) => db.prepare('SELECT l.*, u.name from_name FROM letters l JOIN users u ON u.id=l.user_id WHERE l.pair_id=? ORDER BY l.ts DESC LIMIT 50').all(pairId),
+  addLetter: (pairId, uid, title, text) => db.prepare('INSERT INTO letters (pair_id,user_id,title,text,ts) VALUES (?,?,?,?,?)').run(pairId, uid, title, text, Date.now()),
+  delLetter: (pairId, id, uid) => db.prepare('DELETE FROM letters WHERE pair_id=? AND id=? AND user_id=?').run(pairId, id, uid),
   logMood: (uid, pairId, mood) => {
     db.prepare('INSERT INTO mood_log (user_id,pair_id,mood,ts) VALUES (?,?,?,?)').run(uid, pairId, mood, Date.now());
     db.prepare('DELETE FROM mood_log WHERE user_id=? AND ts<?').run(uid, Date.now() - 30 * 86400000);

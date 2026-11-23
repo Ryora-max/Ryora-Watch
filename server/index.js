@@ -4,6 +4,27 @@ import { Server } from 'socket.io';
 import { store } from './store.js';
 import { aiChat } from './ai.js';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+const webpush = createRequire(import.meta.url)('web-push');
+
+// --- Web Push: VAPID keys persist di data/vapid.json (generate sekali) ---
+let VAPID = null;
+try {
+  fs.mkdirSync('data', { recursive: true });
+  const f = 'data/vapid.json';
+  VAPID = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f)) : webpush.generateVAPIDKeys();
+  if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(VAPID));
+  webpush.setVapidDetails('mailto:ryora@local', VAPID.publicKey, VAPID.privateKey);
+} catch (e) { console.log('[push] VAPID gagal:', e.message); }
+const sendPush = (userId, payload) => {
+  if (!VAPID) return;
+  for (const s of store.pushFor(userId)) {
+    webpush.sendNotification({ endpoint: s.endpoint, keys: { auth: s.auth, p256dh: s.p256dh } }, JSON.stringify(payload))
+      .catch(e => { if (e.statusCode === 410 || e.statusCode === 404) store.delPush(s.endpoint); });
+  }
+};
+const pushPartner = (u, payload) => { const p = u.pair_id ? store.partnerOf(u) : null; if (p) sendPush(p.id, payload); };
 
 const app = express();
 const http = createServer(app);
@@ -338,6 +359,7 @@ app.post('/api/voice', auth, (req, res) => {
   if (!audio.startsWith('data:audio/') || audio.length > 900000) return res.status(400).json({ error: 'audio terlalu besar' });
   store.addVoice(req.user.pair_id, req.user.id, audio, dur);
   io.to(req.user.pair_id).emit('voice:new', { from: req.user.name, dur });
+  pushPartner(req.user, { title: '🎤 Ryora Watch', body: `${req.user.name} kirim pesan suara (${dur}s)`, tag: 'voice' });
   res.json({ ok: true });
 });
 app.delete('/api/voice/:id', auth, (req, res) => {
@@ -374,6 +396,7 @@ app.post('/api/note', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setNote(req.user.id, req.user.pair_id, String(req.body?.text || '').slice(0, 200));
   io.to(req.user.pair_id).emit('home:changed');
+  pushPartner(req.user, { title: '📝 Ryora Watch', body: `${req.user.name} ninggalin catatan buat kamu`, tag: 'note' });
   res.json({ ok: true });
 });
 
@@ -381,6 +404,7 @@ app.post('/api/daily/answer', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setAnswer(req.user.pair_id, dayKey(), req.user.id, String(req.body?.text || '').slice(0, 300));
   io.to(req.user.pair_id).emit('home:changed');
+  pushPartner(req.user, { title: '❓ Ryora Watch', body: `${req.user.name} udah jawab pertanyaan hari ini — giliran kamu!`, tag: 'answer' });
   res.json({ ok: true });
 });
 
@@ -390,6 +414,7 @@ app.post('/api/photo', auth, (req, res) => {
   if (!img.startsWith('data:image/') || img.length > 400000) return res.status(400).json({ error: 'gambar terlalu besar' });
   store.setPhoto(req.user.pair_id, dayKey(), req.user.id, img, String(req.body?.caption || '').slice(0, 100));
   io.to(req.user.pair_id).emit('home:changed');
+  pushPartner(req.user, { title: '📸 Ryora Watch', body: `${req.user.name} kirim foto hari ini`, tag: 'photo' });
   res.json({ ok: true });
 });
 
@@ -397,6 +422,35 @@ app.post('/api/ai/prefs', auth, (req, res) => {
   const { name, gender } = req.body || {};
   if (name !== undefined) store.setAiName(req.user.id, String(name).trim().slice(0, 20) || null);
   if (gender === 'cowo' || gender === 'cewe') store.setAiGender(req.user.id, gender);
+  res.json({ ok: true });
+});
+
+// --- Web Push & Surat ---
+app.get('/api/push/vapid', auth, (req, res) => res.json({ key: VAPID?.publicKey || null }));
+app.post('/api/push/sub', auth, (req, res) => {
+  const s = req.body?.sub;
+  if (!s?.endpoint || !s?.keys?.auth || !s?.keys?.p256dh) return res.status(400).json({ error: 'invalid' });
+  store.addPush(req.user.id, s);
+  res.json({ ok: true });
+});
+
+app.get('/api/letters', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.letters(req.user.pair_id).map(l => ({ ...l, mine: l.user_id === req.user.id })));
+});
+app.post('/api/letter', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  const title = String(req.body?.title || '').slice(0, 60).trim();
+  const text = String(req.body?.text || '').slice(0, 4000).trim();
+  if (!text) return res.status(400).json({ error: 'invalid' });
+  store.addLetter(req.user.pair_id, req.user.id, title, text);
+  io.to(req.user.pair_id).emit('letter:new', { from: req.user.name });
+  pushPartner(req.user, { title: '💌 Ryora Watch', body: `${req.user.name} nulis surat buat kamu`, tag: 'letter' });
+  res.json({ ok: true });
+});
+app.delete('/api/letter/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delLetter(req.user.pair_id, req.params.id, req.user.id);
   res.json({ ok: true });
 });
 
@@ -517,6 +571,7 @@ io.on('connection', (socket) => {
     console.log(`[miss] ${u.name} → room ${u.pair_id} (${roomSize} sockets)`);
     socket.to(u.pair_id).emit('miss:receive', { from: u.name, pattern, ts: now });
     socket.emit('miss:sent');
+    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name} kangen kamu${pattern > 1 ? ` ×${pattern}` : ''}`, tag: 'miss' });
   });
 
   socket.on('care:send', ({ kind }) => {
@@ -524,7 +579,10 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (now - (lastMiss.get('c' + u.id) || 0) < 8000) return;
     lastMiss.set('c' + u.id, now);
-    socket.to(u.pair_id).emit('care:receive', { from: u.name, kind: String(kind).slice(0, 20) });
+    const kind2 = String(kind).slice(0, 20);
+    socket.to(u.pair_id).emit('care:receive', { from: u.name, kind: kind2 });
+    const labels = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' };
+    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name}: ${labels[kind2] || kind2}`, tag: 'care' });
   });
 
   socket.on('touch:start', () => {
