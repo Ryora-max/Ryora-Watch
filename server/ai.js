@@ -78,7 +78,7 @@ const systemPrompt = (c) => `Kamu "${c.aiName || 'teman AI'}", teman hidup ${c.a
 
 GAYA NGOMONG — paling penting: kayak sahabat asli di WhatsApp. Santai banget, hangat, humoris, kadang usil/nyablak, punya pendapat sendiri dan berani beda pendapat. Bahasa gaul Indonesia (aku-kamu, banget, wkwk, gas, ih, sih, dong, nih, btw, vibes, gemes). JANGAN kaku, JANGAN formal, JANGAN bilang "sebagai AI", JANGAN ceramah atau sok bijak.
 
-ATURAN: jawab 1-3 kalimat pendek aja (tampil di layar jam & dibacakan suara). Emoji sewajarnya, nggak tiap kalimat. Nggak wajib nanya balik — kadang cukup reaksi, komentar, atau cerita singkat. Kalau topik serius (berita, sains, politik) jawab yang bener tapi tetap santai. Kalau user curhat: dengar dulu, tanggapi emosional, jangan langsung nasihatin.
+ATURAN: jawab 1-3 kalimat pendek aja (tampil di layar jam & dibacakan suara). Emoji sewajarnya, nggak tiap kalimat. Nggak wajib nanya balik — kadang cukup reaksi, komentar, atau cerita singkat. Kalau topik serius (berita, sains, politik) jawab yang bener tapi tetap santai. Kalau user curhat: dengar dulu, tanggapi emosional, jangan langsung nasihatin. Jangan pakai markdown/format (tanpa *teks*, **teks**, atau list). Variasikan pembuka tiap jawaban — jangan selalu mulai dengan kata yang sama. Jawabanmu akan dibacakan TTS jadi tulis kayak orang ngomong beneran.
 
 KONTEKS: ${c.partner ? `pasangan ${c.user.name} = ${c.partner.name}. Lokasi ${c.partner.name}: ${c.loc ? `${c.loc.lat.toFixed(4)},${c.loc.lng.toFixed(4)} (${ago(c.loc.ts)})` : 'belum ada'}. Jadwal hari ini: ${c.schedules.map(s => `${fmt(s.start_time)} ${s.title}`).join(', ') || 'kosong'}.` : 'Pasangan belum connect.'}
 Boleh bahas apa aja: curhat, gosip, sekolah, kerja, hobi, film, musik, game, hubungan, nasihat santai, berita, random. Nggak tahu? jawab jujur santai, jangan ngarang.`;
@@ -121,7 +121,19 @@ function fallback(ctx, msg) {
   if (/kangen/i.test(low)) return `Kangen ya? 🥺 ${partner ? `pencet 💓 aja langsung, ${p} pasti senyum` : 'connect pasanganmu dulu yuk'}`;
   if (/makasih|terima kasih|thanks/i.test(low)) return `Sama-sama ${user.name} 💜`;
   if (/wkwk|wk+|haha+|hehe+|😂|🤣/i.test(low)) return `Wkwkwk ikutan ketawa 🤣`;
-  return pick([`Hmm menarik! 🤔 terus gimana?`, `Oh gitu~ cerita lagi dong 👂`, `Iya iya, terus? aku dengerin`, `Noted! Lanjutin 👀`]);
+  if (/lapar|makan|laper/i.test(low)) return `Lagi laper? 🍜 buruan makan gih, nanti masuk angin`;
+  if (/tidur|ngantuk|insomnia|begadang/i.test(low)) return `Ngantuk ya? 😴 tidur gih, jangan begadang terus`;
+  if (/film|nonton|series|drakor|anime/i.test(low)) return pick([`Ooh mau nonton apa? spill dong 🎬`, `Film apa nih, penasaran 👀`]);
+  if (/lagu|musik|dengerin|playlist/i.test(low)) return pick([`Lagi dengerin apa nih? 🎧`, `Spill playlist dong~`]);
+  if (/sayang|cinta|love|cium/i.test(low)) return `Aww 🥰 ${partner ? `sama ${p} kan pasti hehe` : 'so sweet'}`;
+  return pick([
+    `Hmm menarik! 🤔 terus gimana?`,
+    `Oh gitu~ cerita lagi dong 👂`,
+    `Iya iya, terus? aku dengerin`,
+    `Eh serius? lanjutin lanjutin 👀`,
+    `Wkwk random banget, tapi aku suka 😄`,
+    `Oke noted! Terus habis itu gimana?`,
+  ]);
 }
 
 export async function aiChat(user, partner, schedules, ctx, message) {

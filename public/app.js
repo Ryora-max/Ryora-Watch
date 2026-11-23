@@ -233,7 +233,7 @@ function connectSocket() {
   socket.on('care:receive', ({ from, kind }) => {
     navigator.vibrate?.([200, 100, 200]);
     ding();
-    const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🫂 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
+    const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from}: ${label}` }); } catch {}
     toast(`${from} — ${label}`, 4000);
   });
@@ -413,11 +413,11 @@ function show(tab) {
         <button id="touchBtn" class="touchbtn">✋ Tahan di sini</button>
         <div class="muted" id="touchState" style="margin-top:8px;min-height:18px"></div>
       </div>
-      <div class="msect"><b>🫂 Pings sayang</b>
+      <div class="msect"><b>🤗 Pings sayang</b>
         <div class="caregrid">
           <button class="care" data-k="makan">🍚<span>Udah makan?</span></button>
           <button class="care" data-k="minum">💧<span>Minum air!</span></button>
-          <button class="care" data-k="peluk">🫂<span>Peluk virtual</span></button>
+          <button class="care" data-k="peluk">🤗<span>Peluk virtual</span></button>
           <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
         </div>
       </div>
@@ -967,11 +967,14 @@ function aiProfile() {
   el.querySelectorAll('.mood').forEach(b => b.onclick = () => {
     gender = b.dataset.g;
     el.querySelectorAll('.mood').forEach(x => x.classList.toggle('on', x === b));
-    localStorage.cw_pitch = gender === 'cowo' ? VOICE_PITCH.cowo : VOICE_PITCH.cewe;
+    localStorage.cw_pitch = VOICE_PITCH[gender];
+    delete localStorage.cw_voice;
+    fillVoices();
   });
   const sel = el.querySelector('#voiceSel');
   const voices = () => (window.speechSynthesis?.getVoices() || []).sort((a, b) => a.lang.startsWith('id') ? -1 : b.lang.startsWith('id') ? 1 : 0);
-  const fillVoices = () => { sel.innerHTML = voices().map(v => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === localStorage.cw_voice ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('') || '<option value="">Suara bawaan</option>'; };
+  const vtag = (v) => MALE_V.test(v.name) ? '♂' : FEMALE_V.test(v.name) ? '♀' : '·';
+  const fillVoices = () => { sel.innerHTML = voices().map(v => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === localStorage.cw_voice ? 'selected' : ''}>${vtag(v)} ${esc(v.name)} (${esc(v.lang)})</option>`).join('') || '<option value="">Suara bawaan</option>'; };
   fillVoices(); speechSynthesis?.addEventListener?.('voiceschanged', fillVoices);
   sel.onchange = () => { localStorage.cw_voice = sel.value; };
   el.querySelector('#testV').onclick = () => speak('Hai! Aku ' + ($('#ainame').value.trim() || 'teman barumu') + '. Suaraku gini, santai kan?');
@@ -984,17 +987,33 @@ function aiProfile() {
   };
 }
 
-const VOICE_PITCH = { cowo: 0.7, cewe: 1.15 };
+const VOICE_PITCH = { cowo: 0.6, cewe: 1.2 };
+const MALE_V = /ardi|male|bima|jovan|dimas|andika|prabowo|damar|putra|laki|david|mark|james|daniel|george|guy|fred|alex|ravi|hemant|ryan|guy |christopher|eric|brandon|adam|andrew|brian|christian/i;
+const FEMALE_V = /gadis|female|damayanti|siti|indah|intan|ayu|putri|perempuan|wanita|zira|aria|jenny|sonia|natasha|hazel|susan|michelle|ana|aria|catherine|clara|emma|jenny|libby|linda|maria|nancy|nova|sara|sonia|susan|tracy/i;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices();
+  const saved = vs.find(x => x.voiceURI === localStorage.cw_voice);
+  if (saved) return saved;
+  const idVs = vs.filter(v => v.lang.toLowerCase().startsWith('id'));
+  const pool = idVs.length ? idVs : vs;
+  const gender = me?.user?.ai_gender || 'cewe';
+  const byGender = pool.find(v => (gender === 'cowo' ? MALE_V : FEMALE_V).test(v.name));
+  return byGender || pool[0];
+}
 function speak(text) {
   try {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'id-ID';
-    const vs = speechSynthesis.getVoices();
-    const v = vs.find(x => x.voiceURI === localStorage.cw_voice) || vs.find(x => x.lang.toLowerCase().startsWith('id'));
+    const clean = text
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu, '')
+      .replace(/[*_`~#]/g, '')
+      .replace(/\s{2,}/g, ' ').trim();
+    if (!clean) return;
+    const u = new SpeechSynthesisUtterance(clean); u.lang = 'id-ID';
+    const v = pickVoice();
     if (v) u.voice = v;
-    u.pitch = +(localStorage.cw_pitch || VOICE_PITCH.cewe);
-    u.rate = +(localStorage.cw_rate || 1.0);
+    u.pitch = +(localStorage.cw_pitch || VOICE_PITCH[me?.user?.ai_gender] || VOICE_PITCH.cewe);
+    u.rate = +(localStorage.cw_rate || 0.98);
     u.volume = 1;
     speechSynthesis.speak(u);
   } catch {}
