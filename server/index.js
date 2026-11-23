@@ -65,8 +65,24 @@ app.post('/api/ai/toggle', auth, (req, res) => {
 app.post('/api/mood', auth, (req, res) => {
   const mood = String(req.body?.mood || '').slice(0, 8);
   store.setMood(req.user.id, mood);
-  if (req.user.pair_id) io.to(req.user.pair_id).emit('partner:mood', { mood, uid: req.user.id });
+  if (req.user.pair_id) {
+    store.logMood(req.user.id, req.user.pair_id, mood);
+    io.to(req.user.pair_id).emit('partner:mood', { mood, uid: req.user.id });
+  }
   res.json({ ok: true });
+});
+
+// mood 7 hari terakhir berdua — mood terakhir per hari
+app.get('/api/mood/week', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ me: {}, them: {} });
+  const partner = store.partnerOf(req.user);
+  const rows = store.moodWeek(req.user.pair_id, Date.now() - 7 * 86400000);
+  const me = {}, them = {};
+  for (const r of rows) {
+    const k = new Date(r.ts).toDateString();
+    (r.user_id === req.user.id ? me : them)[k] = r.mood;
+  }
+  res.json({ me, them });
 });
 
 // --- Schedules ---
@@ -430,6 +446,40 @@ const batt = new Map();   // userId -> battery %
 const lastMiss = new Map();
 const touching = new Set(); // userId yang lagi tahan sentuh
 const suitPicks = new Map(); // pairId -> {userId: {hand, ts}}
+const TOD_TRUTH = [
+  'Hal pertama yang bikin kamu jatuh cinta sama dia?',
+  'Kebiasaan dia yang diam-diam kamu gemesin?',
+  'Kapan terakhir kamu bohong ke dia? Tentang apa?',
+  'Hal yang paling pengen kamu denger dari dia?',
+  'Momen paling malu bareng dia?',
+  'Kalau bisa ubah 1 hal dari dia, apa?',
+  'Cerita masa kecil yang belum pernah kamu ceritain?',
+  'Hal yang bikin kamu paling insecure di hubungan ini?',
+  'Mimpi teraneh yang pernah kamu alamin tentang dia?',
+  'Hal paling romantis yang pernah dia lakuin menurutmu?',
+  'Kalau hubungan kalian film, judulnya apa?',
+  'Apa yang paling kamu takutin soal masa depan kalian?',
+  'Kapan kamu paling kangen dia? Ceritain momennya.',
+  'Hal kecil dari dia yang selalu bikin kamu senyum?',
+  'Kalau bisa hidup di mana aja bareng dia, di mana?',
+];
+const TOD_DARE = [
+  'Kirim 💓 sekarang juga — langsung, jangan mikir!',
+  'Kirim voice note nyanyiin 1 baris lagu favorit!',
+  'Kirim foto ekspresi paling random kamu sekarang!',
+  'Bikin catatan manis buat dia di Home sekarang!',
+  'Sebutin 3 hal yang kamu sayang dari dia — sekarang!',
+  'Kirim 🤗 peluk virtual + bilang sesuatu yang manis!',
+  'Ganti status kamu jadi pujian buat dia selama sehari!',
+  'Kirim foto langit di tempatmu sekarang!',
+  'Ajak dia video call atau telpon sekarang kalau bisa!',
+  'Bikin jadwal date spontan buat minggu ini!',
+  'Jawab pertanyaan harian dengan jawaban paling jujur!',
+  'Kirim foto makanan terakhir yang kamu makan!',
+  'Bilang "aku sayang kamu" pakai bahasa daerahmu!',
+  'Kirim emoji yang paling menggambarkan dia + alasannya!',
+  'Dance 10 detik sekarang — dia harus percaya kamu! 🕺',
+];
 
 io.use((socket, next) => {
   const u = store.userByToken(socket.handshake.auth?.token);
@@ -509,6 +559,17 @@ io.on('connection', (socket) => {
     } else {
       socket.to(u.pair_id).emit('suit:invite', { from: u.name });
     }
+  });
+
+  // --- truth or dare ---
+  socket.on('tod:request', ({ mode }) => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('t' + u.id) || 0) < 3000) return;
+    lastMiss.set('t' + u.id, now);
+    const list = mode === 'dare' ? TOD_DARE : TOD_TRUTH;
+    const text = list[Math.floor(Math.random() * list.length)];
+    io.to(u.pair_id).emit('tod:card', { mode: mode === 'dare' ? 'dare' : 'truth', text, from: u.name });
   });
 
   socket.on('disconnect', () => {

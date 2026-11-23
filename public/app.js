@@ -275,6 +275,15 @@ function connectSocket() {
     suitMyPick = null;
     $$('.suit').forEach(x => x.classList.remove('on'));
   });
+  socket.on('tod:card', ({ mode, text, from }) => {
+    ding(); navigator.vibrate?.(200);
+    const el = $('#todState');
+    if (el) {
+      el.style.display = '';
+      el.innerHTML = `<b>${mode === 'dare' ? '😈 DARE' : '😇 TRUTH'}</b><span>${esc(text)}</span><i>dari ${esc(from)}</i>`;
+    }
+    toast(`${mode === 'dare' ? '😈 Dare' : '😇 Truth'} dari ${from}!`, 4000);
+  });
   socket.on('partner:mood', ({ mood, uid }) => {
     if (uid === me.user.id) return;
     me.partner.mood = mood;
@@ -463,6 +472,14 @@ function show(tab) {
         <div class="muted" id="suitState" style="margin-top:8px;min-height:18px"></div>
         <div class="muted" id="suitScore" style="font-size:11px"></div>
       </div>
+      <div class="msect"><b>🎲 Truth or Dare</b>
+        <div class="muted" style="margin:2px 0 8px">pilih bareng — kartu muncul di dua HP</div>
+        <div class="todrow">
+          <button class="tod" data-m="truth">😇 Truth</button>
+          <button class="tod" data-m="dare">😈 Dare</button>
+        </div>
+        <div id="todState" class="todcard" style="display:none"></div>
+      </div>
       <div class="msect"><b>🎤 Pesan suara</b>
         <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
         <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
@@ -478,6 +495,7 @@ function show(tab) {
     const tOn = () => { socket.emit('touch:start'); $('#touchState').textContent = `menunggu ${me.partner.name}…`; tb.classList.add('on'); };
     const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
+    $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
     $$('.suit').forEach(b => b.onclick = () => {
       suitMyPick = b.dataset.h;
       $$('.suit').forEach(x => x.classList.toggle('on', x === b));
@@ -555,6 +573,10 @@ async function renderHome(v) {
       <div class="hchip" id="hWrap2">📊 rekap</div>
       <div class="hchip" id="hWx">🌦️ cuaca…</div>
     </div>
+    <div class="hcard" id="moodCard" style="display:none">
+      <div class="hlabel">😊 Mood minggu ini</div>
+      <div id="moodWeek"></div>
+    </div>
     <div class="hcard">
       <div class="hlabel">❓ Pertanyaan hari ini</div>
       <div class="hq">${esc(d.q || '')}</div>
@@ -605,6 +627,25 @@ async function renderHome(v) {
     if (!a && !b) el2.style.display = 'none';
   }).catch(() => { const el2 = $('#hWx'); if (el2) el2.style.display = 'none'; });
   v.querySelectorAll('.hphoto img').forEach(img => { img.style.cursor = 'zoom-in'; img.onclick = () => photoViewer(img.src); });
+  // streak celebration — sekali per milestone
+  const MS = [7, 14, 21, 30, 50, 100, 200, 365];
+  const hit = MS.find(m => (d.streak || 0) >= m);
+  if (hit && +(localStorage.cw_streak_seen || 0) < hit) {
+    localStorage.cw_streak_seen = hit;
+    heartRain(50); ding(); navigator.vibrate?.([300, 100, 300, 100, 300]);
+    toast(`🔥 STREAK ${hit} HARI! Kalian luar biasa 💕`, 5000);
+  }
+  // mood minggu ini
+  api('/mood/week').then(mw => {
+    const card = $('#moodCard'), box = $('#moodWeek');
+    if (!card || !box || !mw) return;
+    const days = [];
+    for (let i = 6; i >= 0; i--) { const dt = new Date(); dt.setDate(dt.getDate() - i); days.push(dt); }
+    const row = (obj, who) => `<div class="mwrow"><span class="mwwho">${who}</span>` +
+      days.map(dt => `<i class="mwc ${dt.toDateString() === new Date().toDateString() ? 'today' : ''}">${obj[dt.toDateString()] || '·'}</i>`).join('') + '</div>';
+    const html = row(mw.me, 'Kamu') + row(mw.them, esc(p.name));
+    if (Object.keys(mw.me).length || Object.keys(mw.them).length) { box.innerHTML = html; card.style.display = ''; }
+  }).catch(() => {});
   v.querySelectorAll('.hreact button').forEach(b => b.onclick = async () => {
     const row = b.closest('.hreact');
     const tid = row.dataset.tid || todayKey();
@@ -962,12 +1003,23 @@ async function checkReminders() {
   if (!schedCache.length) schedCache = await api('/schedules');
   refreshMissStat();
   for (const s of schedCache) {
-    if (s.notify && !reminded.has(s.id) && Math.abs(Date.now() - s.start_time) < 60000) {
-      reminded.add(s.id);
+    if (!s.notify) continue;
+    const diff = s.start_time - Date.now();
+    const key5 = s.id + ':5', key0 = s.id + ':0';
+    // 5 menit sebelum — heads-up
+    if (!reminded.has(key5) && diff > 60000 && diff < 5.5 * 60000) {
+      reminded.add(key5);
+      try { new Notification('⏰ ' + s.title, { body: '5 menit lagi — siap-siap ya!' }); } catch {}
+      toast(`⏰ ${s.title} — 5 menit lagi`);
+      navigator.vibrate?.(150);
+    }
+    // pas mulai — bestie ngingetin dengan suara
+    if (!reminded.has(key0) && Math.abs(diff) < 60000) {
+      reminded.add(key0);
       localStorage.cw_reminded = JSON.stringify([...reminded].slice(-100));
       navigator.vibrate?.([300, 100, 300]);
       try { new Notification('⏰ ' + s.title, { body: 'Jadwal kalian mulai sekarang!' }); } catch {}
-      try { speak(`Waktunya: ${s.title}`); } catch {}
+      try { speak(`Waktunya ${s.title} nih, gas!`); } catch {}
     }
   }
 }

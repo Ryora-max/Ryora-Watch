@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS ai_facts (
 CREATE TABLE IF NOT EXISTS suit_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT, pair_id TEXT, winner_id TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS mood_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, pair_id TEXT, mood TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -214,6 +217,11 @@ export const store = {
     db.prepare('SELECT text, done, created_by uid, ts FROM bucket WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('bucket', r.uid, (r.done ? '🪣✅ ' : '🪣 impian baru: ') + r.text.slice(0, 30), r.ts));
     return rows.sort((a, b) => b.ts - a.ts).slice(0, limit);
   },
+  logMood: (uid, pairId, mood) => {
+    db.prepare('INSERT INTO mood_log (user_id,pair_id,mood,ts) VALUES (?,?,?,?)').run(uid, pairId, mood, Date.now());
+    db.prepare('DELETE FROM mood_log WHERE user_id=? AND ts<?').run(uid, Date.now() - 30 * 86400000);
+  },
+  moodWeek: (pairId, since) => db.prepare('SELECT user_id, mood, ts FROM mood_log WHERE pair_id=? AND ts>? ORDER BY ts').all(pairId, since),
   suitAdd: (pairId, winnerId) => db.prepare('INSERT INTO suit_results (pair_id,winner_id,ts) VALUES (?,?,?)').run(pairId, winnerId, Date.now()),
   suitStats: (pairId) => db.prepare('SELECT winner_id, COUNT(*) n FROM suit_results WHERE pair_id=? GROUP BY winner_id').all(pairId),
   activityDays: (pairId, since) => {

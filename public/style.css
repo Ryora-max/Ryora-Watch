@@ -410,3 +410,15 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .hmap i.lv4{background:#5cc8ff;box-shadow:0 0 6px rgba(92,200,255,.6)}
 .hmap i.off{opacity:.15}
 .hmap span{grid-column:1/-1;font-size:10px;color:rgba(255,255,255,.5);margin-top:6px;text-align:center}
+.todrow{display:flex;gap:10px;justify-content:center;margin-top:4px}
+.tod{flex:1;max-width:140px;padding:12px;border-radius:14px;font-size:15px;font-weight:600;background:var(--card);border:2px solid var(--line);color:var(--text)}
+.tod[data-m="dare"]{border-color:rgba(255,90,120,.4)}
+.tod[data-m="truth"]{border-color:rgba(92,200,255,.4)}
+.todcard{margin-top:10px;padding:14px;border-radius:14px;background:linear-gradient(135deg,rgba(92,200,255,.12),rgba(224,112,154,.12));border:1px solid var(--line);text-align:center;display:flex;flex-direction:column;gap:6px}
+.todcard b{font-size:14px;letter-spacing:1px}
+.todcard span{font-size:15px}
+.todcard i{font-style:normal;font-size:11px;color:var(--dim)}
+.mwrow{display:flex;align-items:center;gap:5px;padding:4px 0}
+.mwrow .mwwho{font-size:11px;color:var(--dim);width:64px;flex-shrink:0}
+.mwc{flex:1;height:24px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:7px;color:var(--dim)}
+.mwc.today{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
