@@ -480,6 +480,11 @@ function show(tab) {
         </div>
         <div id="todState" class="todcard" style="display:none"></div>
       </div>
+      <div class="msect"><b>🎨 Doodle buat dia</b>
+        <canvas id="doodle" width="300" height="300"></canvas>
+        <div class="penrow">${['#ffffff', '#ff8fb1', '#5cc8ff', '#ffd166', '#7ee8a2'].map((c, i) => `<button class="pen ${i === 0 ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
+        <div class="hqin"><button id="doodSend" class="mini" style="flex:1">Kirim 🎨</button><button id="doodClear" class="mini ghost">Hapus</button></div>
+      </div>
       <div class="msect"><b>🎤 Pesan suara</b>
         <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
         <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
@@ -496,6 +501,7 @@ function show(tab) {
     const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
+    setupDoodle();
     $$('.suit').forEach(b => b.onclick = () => {
       suitMyPick = b.dataset.h;
       $$('.suit').forEach(x => x.classList.toggle('on', x === b));
@@ -556,7 +562,12 @@ async function renderHome(v) {
   const p = me.partner;
   const next = schedCache.find(s => s.start_time > Date.now() - 60000);
   const answered = !!d.myAnswer, both = answered && !!d.theirAnswer;
+  // monthsary hari ini? — tanggal jadian & bukan hari pertama
+  const c0 = new Date(me.pair.created_at), n0 = new Date();
+  const isMday = c0.getDate() === n0.getDate() && daysTogether() > 28;
+  const mNum = (n0.getFullYear() - c0.getFullYear()) * 12 + (n0.getMonth() - c0.getMonth());
   v.innerHTML = `<div class="home">
+    ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
     <div class="hcard pcard">
       <span class="avatar big">${esc(p.name[0].toUpperCase())}</span>
       <div class="pinfo"><b>${esc(p.name)} ${p.mood || ''}</b>
@@ -635,6 +646,12 @@ async function renderHome(v) {
     heartRain(50); ding(); navigator.vibrate?.([300, 100, 300, 100, 300]);
     toast(`🔥 STREAK ${hit} HARI! Kalian luar biasa 💕`, 5000);
   }
+  // monthsary confetti — sekali per tanggal
+  if (isMday && localStorage.cw_mday !== n0.toDateString()) {
+    localStorage.cw_mday = n0.toDateString();
+    heartRain(60); ding(); navigator.vibrate?.([300, 120, 300, 120, 400]);
+    toast(`🎂 Happy monthsary ke-${mNum}! 💕`, 6000);
+  }
   // mood minggu ini
   api('/mood/week').then(mw => {
     const card = $('#moodCard'), box = $('#moodWeek');
@@ -672,7 +689,17 @@ async function renderHome(v) {
   };
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
-    el.innerHTML = mems.length ? mems.slice(0, 4).map(m => `<div class="hphoto"><img src="${m.img}"><span>${m.mine ? 'Kamu' : esc(m.from_name || '?')}${m.caption ? ' · ' + esc(m.caption) : ''}${m.mine ? `<b class="mdel" data-id="${m.id}">×</b>` : ''}</span></div>`).join('') + (mems.length > 4 ? `<div class="hphoto more"><span>+${mems.length - 4} lagi</span></div>` : '')
+    // 🕰️ "hari ini N lalu" — kenangan di tanggal sama bulan/tahun lalu
+    const tn = new Date();
+    const otd = mems.find(m => { const d = new Date(m.ts); return d.getDate() === tn.getDate() && d.getMonth() === tn.getMonth() && d.getFullYear() < tn.getFullYear(); })
+      || mems.find(m => { const d = new Date(m.ts); return d.getDate() === tn.getDate() && (tn - m.ts) > 28 * 86400000; });
+    const otdHtml = otd ? (() => {
+      const d = new Date(otd.ts);
+      const mo = (tn.getFullYear() - d.getFullYear()) * 12 + (tn.getMonth() - d.getMonth());
+      const label = mo >= 12 ? `${Math.floor(mo / 12)} tahun lalu hari ini` : `${mo} bulan lalu hari ini`;
+      return `<div class="hphoto otd"><img src="${otd.img}"><span>🕰️ ${label}${otd.caption ? ' · ' + esc(otd.caption) : ''}</span></div>`;
+    })() : '';
+    el.innerHTML = mems.length ? otdHtml + mems.filter(m => m !== otd).slice(0, otd ? 3 : 4).map(m => `<div class="hphoto"><img src="${m.img}"><span>${m.mine ? 'Kamu' : esc(m.from_name || '?')}${m.caption ? ' · ' + esc(m.caption) : ''}${m.mine ? `<b class="mdel" data-id="${m.id}">×</b>` : ''}</span></div>`).join('') + (mems.length > 4 ? `<div class="hphoto more"><span>+${mems.length - 4} lagi</span></div>` : '')
       : '<div class="hsub">belum ada kenangan — abadikan momen pertama 📷</div>';
     el.querySelectorAll('.mdel').forEach(x => x.onclick = async e => { e.stopPropagation(); await api('/memory/' + x.dataset.id, { method: 'DELETE' }); renderHome(v); });
     el.querySelectorAll('.hphoto img').forEach(img => { img.style.cursor = 'zoom-in'; img.onclick = () => photoViewer(img.src); });
@@ -912,6 +939,32 @@ function renderWStatus(el) {
   $('#wsO').textContent = $('#dot').textContent === '🟢' ? 'online' : 'offline';
   $('#wsS').textContent = lastSync ? agoText(lastSync) : '—';
   $('#wresync').onclick = async () => { schedCache = await api('/schedules'); const d = await api('/partner/location'); if (d?.lat) { partnerLoc = d; updatePartnerMarkers(d); } wMenu(); };
+}
+
+// ---------- DOODLE ----------
+function setupDoodle() {
+  const cv = $('#doodle'); if (!cv) return;
+  const cx = cv.getContext('2d');
+  const clear = () => { cx.fillStyle = '#101c33'; cx.fillRect(0, 0, cv.width, cv.height); };
+  clear();
+  cx.lineCap = cx.lineJoin = 'round'; cx.lineWidth = 4;
+  let color = '#ffffff', drawing = false, lx = 0, ly = 0;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)]; };
+  cv.onpointerdown = e => { drawing = true;[lx, ly] = pos(e); cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => {
+    if (!drawing) return;
+    const [x, y] = pos(e);
+    cx.strokeStyle = color; cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
+    [lx, ly] = [x, y];
+  };
+  cv.onpointerup = cv.onpointercancel = () => drawing = false;
+  $$('.pen').forEach(b => b.onclick = () => { color = b.dataset.c; $$('.pen').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#doodClear').onclick = clear;
+  $('#doodSend').onclick = async () => {
+    const r = await api('/memory', { method: 'POST', body: { img: cv.toDataURL('image/jpeg', .82), caption: '🎨 doodle' } });
+    toast(r.ok ? `Doodle terkirim ke ${me.partner.name} 🎨` : 'gagal kirim');
+    if (r.ok) clear();
+  };
 }
 
 // ---------- PHONE MAP ----------
@@ -1292,11 +1345,44 @@ async function wrappedModal(period) {
     </div>
     <div class="wfoot">hari ke-${w.days} bareng · ${w.miss_me}x kamu kangen · ${w.miss_them}x dia kangen</div>
     <div class="hmap" id="hmap"></div>
-    <button id="wclose" class="ghost" style="margin-top:14px">Tutup</button>
+    <button id="wshare" class="ghost" style="margin-top:12px">📤 Simpan sebagai gambar</button>
+    <button id="wclose" class="ghost" style="margin-top:8px">Tutup</button>
   </div>`;
   document.body.appendChild(el);
   el.querySelector('#wclose').onclick = () => el.remove();
   el.onclick = e => { if (e.target === el) el.remove(); };
+  el.querySelector('#wshare').onclick = () => {
+    const c = document.createElement('canvas'); c.width = 540; c.height = 960;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, 960);
+    g.addColorStop(0, '#10406e'); g.addColorStop(.55, '#0a2450'); g.addColorStop(1, '#06122a');
+    x.fillStyle = g; x.fillRect(0, 0, 540, 960);
+    x.textAlign = 'center';
+    x.fillStyle = '#5cc8ff'; x.font = '600 26px sans-serif';
+    x.fillText('🌊 Ryora', 270, 100);
+    x.fillStyle = '#fff'; x.font = '700 48px sans-serif';
+    x.fillText(w.month, 270, 165);
+    x.font = '400 25px sans-serif'; x.fillStyle = 'rgba(255,255,255,.85)';
+    x.fillText(`${w.me} 💙 ${w.partner || '?'}`, 270, 212);
+    const stats = [[w.miss, 'kangen'], [w.memories, 'kenangan'], [w.photos, 'foto'], [w.voices, 'suara'], [w.schedules, 'jadwal'], [w.answers, 'jawaban']];
+    stats.forEach((s, i) => {
+      const col = i % 3, row = Math.floor(i / 3), sx = 110 + col * 160, sy = 330 + row * 145;
+      x.fillStyle = 'rgba(255,255,255,.07)';
+      x.beginPath(); x.roundRect(sx - 62, sy - 62, 124, 124, 18); x.fill();
+      x.fillStyle = '#fff'; x.font = '700 46px sans-serif';
+      x.fillText(String(s[0]), sx, sy + 2);
+      x.fillStyle = 'rgba(255,255,255,.6)'; x.font = '400 19px sans-serif';
+      x.fillText(s[1], sx, sy + 36);
+    });
+    x.fillStyle = 'rgba(255,255,255,.65)'; x.font = '400 21px sans-serif';
+    x.fillText(`hari ke-${w.days} bareng · ${w.miss_me}x ${w.me} kangen · ${w.miss_them}x ${w.partner || '?'} kangen`, 270, 830);
+    x.fillStyle = 'rgba(92,200,255,.5)'; x.font = '400 16px sans-serif';
+    x.fillText('dibuat dengan 💙 di Ryora Watch', 270, 890);
+    const a = document.createElement('a');
+    a.download = `ryora-${w.month.replace(/\s/g, '-').toLowerCase()}.png`;
+    a.href = c.toDataURL('image/png'); a.click();
+    toast('Rekap tersimpan sebagai gambar 📤');
+  };
   // heatmap 6 minggu terakhir (kayak GitHub)
   const hm = el.querySelector('#hmap');
   if (hm && act?.days) {
