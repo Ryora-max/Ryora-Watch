@@ -21,6 +21,14 @@ Jam tangan DIY berbasis IoT (ESP32) untuk **tepat 2 orang** — pasangan eksklus
 
 Fase: **web app v1 jalan** — pairing, peta live, jadwal+reminder, kangen, AI (Gemini), PWA installable. Jam fisik = tahap berikutnya.
 
+## Demo online instan (tanpa deploy)
+
+```bash
+npm start                 # server jalan di :3000
+./cloudflared.exe tunnel --url http://localhost:3000
+# → dapat https://xxx.trycloudflare.com — buka di HP berdua, pairing, GPS jalan (HTTPS)
+```
+
 ## Menjalankan lokal
 
 ```bash
