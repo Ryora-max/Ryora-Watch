@@ -1,9 +1,22 @@
-const CACHE = 'ryora-v33';
+const CACHE = 'ryora-v34';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => e.waitUntil(clients.claim().then(() => caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))))));
+// Network-first untuk shell app (JS/CSS/HTML) — update selalu keambil; cache cuma fallback offline
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('/api/') || e.request.url.includes('socket.io')) return;
+  const u = new URL(e.request.url);
+  if (u.pathname.includes('/api/') || u.pathname.includes('socket.io')) return;
+  if (e.request.mode === 'navigate' || /\.(js|css|html|json|svg)$/.test(u.pathname)) {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const cp = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, cp));
+        return r;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // aset lain (gambar/font) — cache-first
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
 
