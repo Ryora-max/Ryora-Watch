@@ -742,8 +742,6 @@ function show(tab) {
         <div class="hqin"><input id="stime" type="datetime-local"><select id="srep"><option value="">sekali</option><option value="daily">🔁 harian</option><option value="weekly">🔁 mingguan</option></select></div>
         <button id="sadd">Tambah</button>
       </div>
-      <div class="addrow" style="justify-content:center;gap:10px"><span class="hsub">⚡ ajak:</span>
-        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button></div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
@@ -755,13 +753,7 @@ function show(tab) {
     $('#stime').value = new Date(nx.getTime() - nx.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#sadd').onclick = addSchedule;
     $('#st').onkeydown = e => { if (e.key === 'Enter') addSchedule(); };
-    // ajakan quality time — satu tap → jadwal + notif ke dia
-    v.querySelectorAll('.qt').forEach(b => b.onclick = async () => {
-      const t = b.dataset.q;
-      await api('/schedules', { method: 'POST', body: { title: t, start: Date.now() + 3 * 3600000, notify: true } });
-      schedCache = await api('/schedules'); loadSchedules();
-      toast(`${t} — undangan terkirim ke ${pname()} 💌`);
-    });
+
     $('#segList').onclick = () => { $('#segList').classList.add('on'); $('#segCal').classList.remove('on'); $('#scal').style.display = 'none'; $('#slist').style.display = ''; };
     $('#segCal').onclick = () => { $('#segCal').classList.add('on'); $('#segList').classList.remove('on'); $('#slist').style.display = 'none'; $('#scal').style.display = ''; renderCal(); };
     $('#bucketAdd').onclick = addBucket;
