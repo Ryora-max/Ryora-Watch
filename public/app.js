@@ -10,8 +10,8 @@ const reactRow = (type, reacts = [], tid) => {
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let token = localStorage.getItem('cw_token');
-let me = null, socket = null, map = null, wmini = null, markers = {}, trailLine = null, linkLine = null;
-let currentTab = 'watch', watchTimer = null, remindTimer = null, tapCount = 0, tapTimer = null;
+let me = null, socket = null, map = null, markers = {}, trailLine = null, linkLine = null, midMark = null;
+let currentTab = 'home', remindTimer = null, tapCount = 0, tapTimer = null;
 let partnerLoc = null, myLoc = null, lastSync = null, schedCache = [], reminded = new Set(JSON.parse(localStorage.cw_reminded || '[]'));
 let partnerOnline = false, partnerSeen = null, deferredInstall = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
@@ -159,12 +159,11 @@ async function mainUI() {
       <div class="whoinfo"><div class="pname">${esc(me.partner.name)}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
       <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span> <span id="pstatus" class="stag">${esc(me.partner.status || '')}</span></div></div>
     </div>
-    <button id="gear" class="iconbtn">⚙️</button>
+    <div class="hdr-right"><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
   </header>
   <div id="view"></div>
   <nav>
     <button data-t="home" class="on">🏠<span>Home</span></button>
-    <button data-t="watch">⌚<span>Jam</span></button>
     <button data-t="map">🗺️<span>Peta</span></button>
     <button data-t="sched">📅<span>Jadwal</span></button>
     <button data-t="miss">💓<span>Kangen</span></button>
@@ -187,7 +186,10 @@ async function mainUI() {
       }
     }).catch(() => {});
   }
+  const clockEl = $('#clock'), tickClock = () => { if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); };
+  tickClock(); setInterval(tickClock, 5000);
   connectSocket(); show('home'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
+  tour();
   // Web Push — subscribe kalau notif udah diizinin
   (async () => {
     try {
@@ -218,13 +220,13 @@ function connectSocket() {
   socket = io({ auth: { token } });
   socket.on('connect', () => { if (myLoc) socket.emit('location:update', myLoc); });
   socket.on('disconnect', () => toast('Koneksi terputus, menyambung ulang…'));
-  socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; const w = $('#wdot'); if (w) w.textContent = online ? '🟢' : '⚪'; updateSeen(); });
-  socket.on('partner:battery', ({ level }) => { $('#pbatt').textContent = ` ${level}%`; const w = $('#wbatt'); if (w) w.textContent = `🔋${level}%`; });
+  socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; updateSeen(); });
+  socket.on('partner:battery', ({ level }) => { $('#pbatt').textContent = ` ${level}%`; });
   socket.on('schedules:changed', async () => {
     schedCache = await api('/schedules');
     refreshMissStat();
     if (currentTab === 'sched') loadSchedules();
-    if (wmode === 'app' && $('#wappbody') && currentWApp === 0) renderWSched($('#wappbody'));
+
   });
   socket.on('location:update', (l) => { partnerLoc = l; lastSync = Date.now(); updatePartnerMarkers(l); trailLine?.addLatLng([l.lat, l.lng]); updateTogether(); });
   socket.on('miss:receive', ({ from, pattern }) => {
@@ -307,7 +309,7 @@ function connectSocket() {
     me.partner.mood = mood;
     const pn = $('.pname');
     if (pn) pn.innerHTML = `${esc(me.partner.name)}${mood ? ' ' + mood : ''} <span id="dot">${$('#dot')?.textContent || '⚪'}</span><span id="pbatt">${$('#pbatt')?.textContent || ''}</span><span id="together" class="tbadge" style="display:${together() ? '' : 'none'}">💚 bareng</span>`;
-    const wp = $('#wpmood'); if (wp) wp.textContent = mood || '';
+
     toast(`${me.partner.name} lagi ${mood}`);
   });
 }
@@ -393,11 +395,9 @@ function startGeo() {
     geoState = 'on'; renderGeoCard();
     myLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
     socket?.emit('location:update', myLoc);
-    for (const m of [map, wmini]) {
-      if (!m) continue;
-      const id = 'me' + (m === wmini ? 'w' : '');
-      if (!markers[id]) { markers[id] = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(m); if (m === map) m.setView([myLoc.lat, myLoc.lng], 15); }
-      else markers[id].setLatLng([myLoc.lat, myLoc.lng]);
+    if (map) {
+      if (!markers.me) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
+      else markers.me.setLatLng([myLoc.lat, myLoc.lng]);
     }
     fitBoth(); updateTogether();
   }, e => { if (e.code === 1) { geoState = 'denied'; renderGeoCard(); } }, { enableHighAccuracy: true });
@@ -424,13 +424,10 @@ async function shareBattery() {
 }
 
 function updatePartnerMarkers(l) {
-  for (const m of [map, wmini]) {
-    if (!m) continue;
-    const id = 'p' + (m === wmini ? 'w' : '');
-    if (!markers[id]) markers[id] = L.marker([l.lat, l.lng], { icon: mkIcon('#5cc8ff', me.partner.name[0].toUpperCase()) }).addTo(m);
-    else markers[id].setLatLng([l.lat, l.lng]);
+  if (map) {
+    if (!markers.p) markers.p = L.marker([l.lat, l.lng], { icon: mkIcon('#5cc8ff', me.partner.name[0].toUpperCase()) }).addTo(map);
+    else markers.p.setLatLng([l.lat, l.lng]);
   }
-  if (wmini) wmini.setView([l.lat, l.lng], wmini.getZoom());
   fitBoth();
   const lb = $('#locpanel');
   if (lb) lb.innerHTML = `<span class="avatar">${esc(me.partner.name[0].toUpperCase())}</span>
@@ -443,20 +440,19 @@ function updatePartnerMarkers(l) {
 function fitBoth() {
   if (!map || !markers.me || !markers.p) return;
   map.fitBounds(L.latLngBounds(markers.me.getLatLng(), markers.p.getLatLng()).pad(0.3));
-  linkLine?.remove();
-  linkLine = L.polyline([markers.me.getLatLng(), markers.p.getLatLng()], { color: '#fff', weight: 3, opacity: .75, dashArray: '1 10', lineCap: 'round' }).addTo(map);
+  linkLine?.remove(); midMark?.remove();
+  const a = markers.me.getLatLng(), b = markers.p.getLatLng();
+  linkLine = L.polyline([a, b], { color: '#ff7fb0', weight: 3, opacity: .9, dashArray: '1 12', lineCap: 'round', className: 'loveline' }).addTo(map);
+  midMark = L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], { icon: L.divIcon({ html: '<div class="lovefloat">💕</div>', iconSize: [22, 22], iconAnchor: [11, 11], className: '' }), interactive: false }).addTo(map);
 }
 
 // ---------- TABS ----------
 function show(tab) {
   currentTab = tab;
-  clearInterval(watchTimer);
-  try { map?.remove(); wmini?.remove(); } catch {}
-  wmini = null; delete markers.mew; delete markers.pw;
-  map = null; delete markers.me; delete markers.p; trailLine = null; linkLine = null;
+  try { map?.remove(); } catch {}
+  map = null; delete markers.me; delete markers.p; trailLine = null; linkLine = null; midMark = null;
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
-  if (tab === 'watch') return showWatch(v);
   if (tab === 'map') {
     v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><div class="locpanel" id="locpanel"><span class="avatar">${esc(me.partner.name[0].toUpperCase())}</span><div class="locinfo"><b>${esc(me.partner.name)}</b><span>menunggu lokasi…</span></div></div>`;
     initMap(); renderGeoCard(); return;
@@ -465,14 +461,13 @@ function show(tab) {
     v.innerHTML = `<div class="misspage">
       <div class="missttl">💓 Kangen</div>
       <button id="missBig"><span class="hb">💓</span><span id="tapN"></span></button>
-      <div class="muted">tap berkali-kali buat sinyal lebih kuat (maks ×5)</div>
+      <div class="muted">tap berkali-kali buat sinyal lebih kuat</div>
       <div class="missstats" id="missStats"></div>
-      <div class="msect"><b>🤲 Sentuh bareng</b>
-        <div class="muted" style="margin:2px 0 8px">tahan tombol — kalau dia juga tahan, kalian "nyentuh" 💞</div>
-        <button id="touchBtn" class="touchbtn">✋ Tahan di sini</button>
+      <div class="msect">
+        <button id="touchBtn" class="touchbtn">🤲 Tahan di sini — sentuh bareng</button>
         <div class="muted" id="touchState" style="margin-top:8px;min-height:18px"></div>
       </div>
-      <div class="msect"><b>🤗 Pings sayang</b>
+      <div class="msect"><b>Peduli dia</b>
         <div class="caregrid">
           <button class="care" data-k="makan">🍚<span>Udah makan?</span></button>
           <button class="care" data-k="minum">💧<span>Minum air!</span></button>
@@ -480,40 +475,37 @@ function show(tab) {
           <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
         </div>
       </div>
-      <div class="msect"><b>✊ Adu suit</b>
-        <div class="muted" style="margin:2px 0 8px">pilih barengan — hasilnya muncul di dua HP</div>
-        <div class="suitrow">
-          <button class="suit" data-h="✊">✊</button>
-          <button class="suit" data-h="✋">✋</button>
-          <button class="suit" data-h="✌️">✌️</button>
+      <div class="msect"><b>Main bareng</b>
+        <div class="playgrid">
+          <div class="playbox"><div class="pbt">✊ Suit</div>
+            <div class="suitrow"><button class="suit" data-h="✊">✊</button><button class="suit" data-h="✋">✋</button><button class="suit" data-h="✌️">✌️</button></div>
+            <div class="muted" id="suitState" style="min-height:16px;font-size:11px"></div>
+            <div class="muted" id="suitScore" style="font-size:10px"></div>
+          </div>
+          <div class="playbox"><div class="pbt">🎲 Truth / Dare</div>
+            <div class="todrow"><button class="tod" data-m="truth">😇</button><button class="tod" data-m="dare">😈</button></div>
+            <div id="todState" class="todcard" style="display:none"></div>
+          </div>
         </div>
-        <div class="muted" id="suitState" style="margin-top:8px;min-height:18px"></div>
-        <div class="muted" id="suitScore" style="font-size:11px"></div>
       </div>
-      <div class="msect"><b>🎲 Truth or Dare</b>
-        <div class="muted" style="margin:2px 0 8px">pilih bareng — kartu muncul di dua HP</div>
-        <div class="todrow">
-          <button class="tod" data-m="truth">😇 Truth</button>
-          <button class="tod" data-m="dare">😈 Dare</button>
+      <div class="msect"><b>Kirim sesuatu</b>
+        <div class="sendgrid">
+          <button id="vrec" class="sbtn" style="--c:#ff8fb1">🎙️<span>Voice — tahan rekam</span></button>
+          <button id="doodBtn" class="sbtn" style="--c:#5cc8ff">🎨<span>Doodle</span></button>
+          <button id="lwrite" class="sbtn" style="--c:#ffd166">✍️<span>Surat</span></button>
         </div>
-        <div id="todState" class="todcard" style="display:none"></div>
-      </div>
-      <div class="msect"><b>🎨 Doodle buat dia</b>
-        <canvas id="doodle" width="300" height="300"></canvas>
-        <div class="penrow">${['#ffffff', '#ff8fb1', '#5cc8ff', '#ffd166', '#7ee8a2'].map((c, i) => `<button class="pen ${i === 0 ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
-        <div class="hqin"><button id="doodSend" class="mini" style="flex:1">Kirim 🎨</button><button id="doodClear" class="mini ghost">Hapus</button></div>
-      </div>
-      <div class="msect"><b>🎤 Pesan suara</b>
-        <button id="vrec" class="touchbtn" style="border-color:#ff8fb1">🎙️ Tahan buat rekam (maks 30d)</button>
-        <div class="muted" id="vstate" style="margin-top:6px;min-height:16px"></div>
+        <div class="muted" id="vstate" style="margin-top:8px;min-height:16px"></div>
+        <div id="doodWrap" style="display:none;margin-top:10px">
+          <canvas id="doodle" width="300" height="300"></canvas>
+          <div class="penrow">${['#ffffff', '#ff8fb1', '#5cc8ff', '#ffd166', '#7ee8a2'].map((c, i) => `<button class="pen ${i === 0 ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
+          <div class="hqin"><button id="doodSend" class="mini" style="flex:1">Kirim 🎨</button><button id="doodClear" class="mini ghost">Hapus</button></div>
+        </div>
         <div id="vlist" style="margin-top:6px"></div>
-      </div>
-      <div class="msect"><b>💌 Surat</b>
-        <button id="lwrite" class="touchbtn" style="border-color:#ffd166">✍️ Tulis surat buat ${esc(me.partner.name)}</button>
         <div id="llist" style="margin-top:8px"></div>
       </div>
-      <div class="msect"><b>Riwayat</b><div class="histlist" id="missHist"></div></div>
+      <details class="msect mfold"><summary>📜 Riwayat kangen</summary><div class="histlist" id="missHist"></div></details>
     </div>`;
+    $('#doodBtn').onclick = () => { const w = $('#doodWrap'); w.style.display = w.style.display === 'none' ? '' : 'none'; };
     $('#missBig').onclick = missTap;
     setupVoice();
     loadVoices();
@@ -614,12 +606,12 @@ async function renderHome(v) {
       <div class="hdays">💕<b>${daysTogether()}</b><span>hari</span></div>
     </div>
     <div class="hchips">
-      <div class="hchip">🔥 streak ${d.streak || 0} hari</div>
-      <div class="hchip">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>
-      ${next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 12))}</div>` : '<div class="hchip" id="hNext">📅 tambah jadwal</div>'}
-      <div class="hchip" id="hMiss">💓 kangen</div>
+      <div class="hchip">🔥 ${d.streak || 0} hari</div>
+      ${me.pair.next_meet ? `<div class="hchip" id="hNext">✈️ ${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? dd + ' hari lagi' : 'ketemu hari ini!'; })()}</div>`
+        : next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 10))}</div>`
+        : `<div class="hchip" id="hNext">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>`}
       <div class="hchip" id="hWrap2">📊 rekap</div>
-      <div class="hchip" id="hWx">🌦️ cuaca…</div>
+      <div class="hchip" id="hWx">🌦️…</div>
     </div>
     <div class="hcard" id="moodCard" style="display:none">
       <div class="hlabel">😊 Mood minggu ini</div>
@@ -642,30 +634,17 @@ async function renderHome(v) {
       <div class="hphotos" id="hphotos">` +
         (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(p.name)}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
       `</div>
-      <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" hidden></label>
-    </div>
-    <div class="hcard" id="meetCard">
-      <div class="hlabel">✈️ Countdown ketemu</div>
-      ${me.pair.next_meet ? `<div class="meetbig">${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? `<b>${dd}</b> hari lagi — ${new Date(me.pair.next_meet).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })} 🎉` : 'HARI INI KETEMUAN! 🎉🎉'; })()}</div>` : '<div class="hsub">atur tanggal ketemu kalian berikutnya</div>'}
-      <div class="hqin"><input id="meetDate" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">Simpan</button></div>
+      <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" capture="environment" hidden></label>
     </div>
     <div class="hcard">
       <div class="hlabel">🖼️ Kenangan <span class="hsub">(album kalian)</span></div>
       <div class="hphotos" id="hmems"></div>
       <div class="hqin"><label class="hphotobtn" style="flex:1;margin:0">📷 Tambah kenangan<input type="file" id="mfile" accept="image/*" hidden></label></div>
     </div>
-    ${d.recap ? `<div class="hcard"><div class="hlabel">📊 Minggu ini</div>
-      <div class="recap">
-        <div><b>${d.recap.miss}</b><span>💓 kangen</span></div>
-        <div><b>${d.recap.sched}</b><span>📅 jadwal</span></div>
-        <div><b>${d.recap.photo}</b><span>📸 foto</span></div>
-        <div><b>${d.recap.ans}</b><span>❓ jawaban</span></div>
-      </div><button id="hWrap" class="ghost" style="margin-top:10px;font-size:13px">📊 Kartu rekap ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</button></div>` : ''}
     ${d.feed?.length ? `<div class="hcard"><div class="hlabel">⚡ Aktivitas kalian</div>
       ${d.feed.map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('')}
     </div>` : ''}
   </div>`;
-  $('#hWrap') && ($('#hWrap').onclick = () => wrappedModal());
   $('#hWrap2') && ($('#hWrap2').onclick = () => wrappedModal());
   api('/weather').then(w => {
     const el2 = $('#hWx'); if (!el2 || !w) return;
@@ -708,7 +687,7 @@ async function renderHome(v) {
     renderHome(v);
   });
   $('#hNext').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="sched"]').classList.add('on'); show('sched'); };
-  $('#hMiss').onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); document.querySelector('[data-t="miss"]').classList.add('on'); show('miss'); };
+
   const ansBtn = $('#hansBtn');
   if (ansBtn) {
     const send = async () => { const t = $('#hans').value.trim(); if (!t) return; await api('/daily/answer', { method: 'POST', body: { text: t } }); renderHome(v); };
@@ -718,12 +697,7 @@ async function renderHome(v) {
     await api('/note', { method: 'POST', body: { text: $('#hnote').value.trim() } });
     toast('Catatan tersimpan 💌');
   };
-  $('#meetBtn').onclick = async () => {
-    const v2 = $('#meetDate').value; if (!v2) return;
-    const ts = new Date(v2 + 'T12:00:00').getTime();
-    await api('/meet', { method: 'POST', body: { ts } });
-    me.pair.next_meet = ts; renderHome(v); toast('Tanggal ketemu disimpan ✈️');
-  };
+
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
     // 🕰️ "hari ini N lalu" — kenangan di tanggal sama bulan/tahun lalu
@@ -777,207 +751,20 @@ async function renderHome(v) {
 function photoViewer(src) {
   const el = document.createElement('div'); el.className = 'wmodal';
   el.style.background = 'rgba(5,15,30,.94)';
-  el.innerHTML = `<img src="${src}" style="max-width:94vw;max-height:86dvh;border-radius:14px;box-shadow:0 10px 60px rgba(0,0,0,.6)">`;
+  el.innerHTML = `<img src="${src}" style="max-width:94vw;max-height:86vh;border-radius:14px;box-shadow:0 10px 60px rgba(0,0,0,.6)">`;
   el.onclick = () => el.remove();
   document.body.appendChild(el);
 }
 
-// ---------- WATCH SIMULATOR (watchface → tap/crown → grid icon → app) ----------
-let wmode = 'face';
 const aiName = () => me?.user?.ai_name || 'AI';
-function showWatch(v) {
-  v.innerHTML = `
-  <div class="watchwrap">
-    <div class="strap top"></div>
-    <div class="wbody">
-      <div class="wscreen" id="wscreen">
-        <div class="wlayer" id="wface"></div>
-        <div class="wlayer" id="wgrid" hidden></div>
-        <div class="wlayer" id="wapp" hidden></div>
-      </div>
-      <button class="crown" id="crown" title="Menu">◉</button>
-    </div>
-    <div class="strap bot"></div>
-    <div class="wtools"><button class="mini ghost" id="wpaperBtn">🎨 Wallpaper</button><span class="muted" style="font-size:11px">tap layar / ◉ = menu</span></div>
-  </div>`;
-  $('#wpaperBtn').onclick = paperMenu;
-
-  $('#wface').onclick = () => wMenu();
-  $('#crown').onclick = () => wmode === 'face' ? wMenu() : wHome();
-
-  wHome(); applyWPaper();
-  watchTimer = setInterval(tickWatch, 1000); tickWatch();
-}
-
-const WAPPS = [
-  { icon: '📅', name: 'Jadwal', open: () => renderWSched($('#wappbody')) },
-  { icon: '🗺️', name: 'Peta', open: () => renderWMap($('#wappbody')) },
-  { icon: '✦', name: 'AI', open: () => renderWAI($('#wappbody')) },
-  { icon: '💓', name: 'Kangen', open: () => renderWKangen($('#wappbody')) },
-  { icon: '😊', name: 'Mood', open: () => renderWMood($('#wappbody')) },
-  { icon: '⚙️', name: 'Status', open: () => renderWStatus($('#wappbody')) },
-];
-const wLayer = (id) => {
-  wmode = id === 'wface' ? 'face' : id === 'wgrid' ? 'grid' : 'app';
-  for (const l of ['wface', 'wgrid', 'wapp']) { const el = $('#' + l); if (el) el.hidden = l !== id; }
-};
-function wHome() { wmini?.remove(); wmini = null; wLayer('wface'); renderWatchface(); }
-function wMenu() {
-  wLayer('wgrid');
-  $('#wgrid').innerHTML = `<div class="wlaunch">` +
-    WAPPS.map((a, i) => `<button class="wicon" data-i="${i}"><i>${a.icon}</i><span>${a.name}</span></button>`).join('') + `</div>`;
-  $('#wgrid').querySelectorAll('.wicon').forEach(b => b.onclick = e => { e.stopPropagation(); openWApp(+b.dataset.i); });
-  $('#wgrid').onclick = e => { if (e.target.id === 'wgrid' || e.target.className === 'wlaunch') wHome(); };
-}
-let currentWApp = -1;
-function openWApp(i) {
-  currentWApp = i;
-  wLayer('wapp');
-  $('#wapp').innerHTML = `<button class="wback" id="wback">‹</button><div class="wappbody" id="wappbody"></div>`;
-  $('#wback').onclick = wMenu;
-  WAPPS[i].open();
-}
-
-// ---------- WALLPAPER JAM (diatur dari app, seperti Galaxy Watch) ----------
-const WPAPERS = [
-  { name: 'Langit', css: 'linear-gradient(165deg,#5cc8ff,#1e6fb8)' },
-  { name: 'Samudra', css: 'linear-gradient(165deg,#1e8fd4,#0a4a80)' },
-  { name: 'Toska', css: 'linear-gradient(165deg,#2ed8c4,#0e7a80)' },
-  { name: 'Senja', css: 'linear-gradient(165deg,#f0a05a,#8a3a6e)' },
-  { name: 'Aurora', css: 'linear-gradient(165deg,#5eead4,#5a6ee8)' },
-  { name: 'Ombak', css: 'linear-gradient(165deg,#38bdf8,#6366f1)' },
-];
-const applyWPaper = () => {
-  const w = $('#wscreen') || $('.wscreen');
-  if (!w) return;
-  if (localStorage.cw_wpaper === 'custom' && localStorage.cw_wpaper_img) {
-    w.style.background = `url(${localStorage.cw_wpaper_img}) center/cover no-repeat`;
-    return;
-  }
-  const i = +(localStorage.cw_wpaper || 0);
-  w.style.background = WPAPERS[i]?.css || WPAPERS[0].css;
-};
-
-function tickWatch() {
-  const n = new Date(), t = $('#wtime');
-  if (!t) return;
-  t.textContent = n.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  const ws = $('#wsec'); if (ws) ws.textContent = ':' + String(n.getSeconds()).padStart(2, '0');
-  $('#wdate').textContent = n.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-  const wl = $('#wloc');
-  if (wl) wl.textContent = partnerLoc ? `📍 ${distText() || '—'} • ${agoText(partnerLoc.ts)}` : '📍 menunggu lokasi…';
-  const wn = $('#wnext');
-  if (wn) {
-    const next = schedCache.find(s => s.start_time > Date.now() - 60000);
-    wn.textContent = next ? `⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${next.title}` : '— tidak ada jadwal —';
-  }
-}
-
 const daysTogether = () => Math.floor((Date.now() - me.pair.created_at) / 86400000) + 1;
 const nextMonthsary = () => {
   const c = new Date(me.pair.created_at), n = new Date();
-  let next = new Date(n.getFullYear(), n.getMonth(), c.getDate());
-  if (next.getTime() <= n.getTime()) next = new Date(n.getFullYear(), n.getMonth() + 1, c.getDate());
-  const elapsed = Math.max(0, (n.getFullYear() - c.getFullYear()) * 12 + (n.getMonth() - c.getMonth()) - (n.getDate() < c.getDate() ? 1 : 0));
-  const months = elapsed + 1;
-  return { days: Math.ceil((next - n) / 86400000), months };
+  let m = new Date(n.getFullYear(), n.getMonth(), c.getDate());
+  if (m <= n) m = new Date(n.getFullYear(), n.getMonth() + 1, c.getDate());
+  const months = (m.getFullYear() - c.getFullYear()) * 12 + (m.getMonth() - c.getMonth());
+  return { months, days: Math.ceil((m - n) / 86400000) };
 };
-
-function renderWatchface() {
-  const el = $('#wface'); if (!el) return;
-  el.innerHTML = `
-    <div class="wdate" id="wdate"></div>
-    <div class="wtime"><span id="wtime"></span><span class="wsec" id="wsec"></span></div>
-    <div class="wpartner">${esc(me.partner.name)} <span id="wpmood">${me.partner.mood || ''}</span> <span id="wdot">⚪</span> <span id="wbatt">${me.partnerBattery != null ? '🔋' + me.partnerBattery + '%' : ''}</span></div>
-    <div class="wlove">💕 hari ke-${daysTogether()}</div>
-    <div class="wnext" id="wnext"></div>
-    <div class="wloc" id="wloc"></div>
-    <div class="whint">tap = menu</div>`;
-}
-
-function renderWSched(el) {
-  const now = Date.now(), today = new Date().toDateString();
-  const todays = schedCache.filter(s => new Date(s.start_time).toDateString() === today);
-  el.innerHTML = `<div class="wsub">JADWAL HARI INI</div><div class="wlist">` +
-    (todays.map(s => {
-      const d = new Date(s.start_time), act = s.start_time <= now && (s.end_time || s.start_time + 3600000) > now;
-      return `<div class="witem ${act ? 'now' : ''}"><b>${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</b>${sicon(s.title)} ${esc(s.title)}</div>`;
-    }).join('') || '<div class="wsub">kosong</div>') + `</div>`;
-}
-
-function renderWMap(el) {
-  if (typeof L === 'undefined') { el.innerHTML = '<div class="wsub">peta gagal dimuat</div>'; return; }
-  el.innerHTML = '<div class="wmap" id="wmap"></div>';
-  wmini?.remove();
-  wmini = L.map('wmap', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false }).setView([-6.2, 106.8], 14);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(wmini);
-  setTimeout(() => wmini.invalidateSize(), 300);
-  if (myLoc) { markers.mew = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(wmini); wmini.setView([myLoc.lat, myLoc.lng], 14); }
-  if (partnerLoc) { markers.pw = L.marker([partnerLoc.lat, partnerLoc.lng], { icon: mkIcon('#5cc8ff', me.partner.name[0].toUpperCase()) }).addTo(wmini); if (!myLoc) wmini.setView([partnerLoc.lat, partnerLoc.lng], 14); }
-}
-
-function renderWAI(el) {
-  el.innerHTML = `
-    <div class="wsub">${esc(aiName()).toUpperCase()}</div>
-    <div class="wai-wave" id="wwave"><i></i><i></i><i></i><i></i></div>
-    <div id="waiText" class="wsub" style="font-size:12px">tahan & ngomong…</div>
-    <button class="wbtn" id="wmic">🎤 Bicara</button>`;
-  $('#wmic').onclick = waiListen;
-}
-
-function waiListen() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR || !$('#waiText')) { $('#waiText') && ($('#waiText').textContent = 'browser tak dukung STT'); return; }
-  const rec = new SR(); rec.lang = 'id-ID'; rec.interimResults = false;
-  $('#waiText').textContent = 'mendengarkan…';
-  rec.onresult = async (e) => {
-    const text = e.results[0][0].transcript;
-    $('#waiText').textContent = '“' + text + '”';
-    let reply;
-    try { const d = await api('/ai/chat', { method: 'POST', body: { message: text } }); reply = d.reply || '…'; }
-    catch { reply = 'gagal hubungi AI'; }
-    $('#waiText').textContent = reply;
-    if (me.user.ai_enabled) speak(reply);
-  };
-  rec.onend = () => {}; rec.onerror = () => { $('#waiText').textContent = 'gagal dengar, coba lagi'; };
-  rec.start();
-}
-
-function renderWKangen(el) {
-  el.innerHTML = `
-    <div class="wheart">💓</div>
-    <div class="wsub">kirim kangen ke ${esc(me.partner.name)}</div>
-    <button class="wbtn" id="wmiss">Kirim 💓</button>
-    <div class="wsub" id="wmissStat"></div>`;
-  $('#wmiss').onclick = () => socket?.connected ? socket.emit('miss:send', { pattern: 1 }) : toast('Belum terhubung');
-  api('/miss/stats').then(s => { const el2 = $('#wmissStat'); if (el2) el2.textContent = `${s.sent}x kamu · ${s.received}x dia (minggu ini)`; });
-}
-
-function renderWMood(el) {
-  el.innerHTML = `<div class="wsub">MOOD KAMU</div><div class="wmoodrow">` +
-    ['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="wmood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('') +
-    `</div><div class="wsub">ketuk buat kirim ke ${esc(me.partner.name)}</div>`;
-  el.querySelectorAll('.wmood').forEach(b => b.onclick = async () => {
-    me.user.mood = b.dataset.m;
-    el.querySelectorAll('.wmood').forEach(x => x.classList.toggle('on', x === b));
-    await api('/mood', { method: 'POST', body: { mood: b.dataset.m } });
-  });
-}
-
-function renderWStatus(el) {
-  el.innerHTML = `<div class="wsub">STATUS</div><div class="wstat">
-    <div class="row"><span>Pasangan</span><b id="wsP">${esc(me.partner.name)}</b></div>
-    <div class="row"><span>Link</span><b id="wsO">…</b></div>
-    <div class="row"><span>Sinkron</span><b id="wsS">—</b></div>
-    <div class="row"><span>Bersama</span><b>${daysTogether()} hari 💕</b></div>
-    <div class="row"><span>Sejak</span><b>${new Date(me.pair.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</b></div>
-    <div class="row"><span>AI</span><b>${me.user.ai_enabled ? 'ON' : 'OFF'}</b></div>
-  </div><button class="wbtn" id="wresync">↻ Re-sync</button>`;
-  $('#wsO').textContent = $('#dot').textContent === '🟢' ? 'online' : 'offline';
-  $('#wsS').textContent = lastSync ? agoText(lastSync) : '—';
-  $('#wresync').onclick = async () => { schedCache = await api('/schedules'); const d = await api('/partner/location'); if (d?.lat) { partnerLoc = d; updatePartnerMarkers(d); } wMenu(); };
-}
-
 // ---------- DOODLE ----------
 function setupDoodle() {
   const cv = $('#doodle'); if (!cv) return;
@@ -1007,7 +794,7 @@ function setupDoodle() {
 // ---------- PHONE MAP ----------
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
-  map = L.map('map', { zoomControl: false }).setView([-6.2, 106.8], 13);
+  map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
   api('/partner/location').then(d => { if (d?.lat != null) { partnerLoc = d; lastSync = Date.now(); updatePartnerMarkers(d); if (d.trail?.length) { trailLine?.remove(); trailLine = L.polyline(d.trail.map(t => [t.lat, t.lng]), { color: '#5cc8ff', weight: 3, opacity: .5, dashArray: '6 8' }).addTo(map); } } });
@@ -1259,76 +1046,6 @@ function speakBrowser(clean, onend) {
   } catch { onend?.(); }
 }
 
-// ---------- WALLPAPER MENU (dari app, seperti companion watch app) ----------
-function paperMenu() {
-  if ($('.settings')) return;
-  const el = document.createElement('div'); el.className = 'settings card';
-  const custom = localStorage.cw_wpaper === 'custom' && localStorage.cw_wpaper_img;
-  el.innerHTML = `<h3>🎨 Wallpaper jam</h3>
-    <div class="wprow">` +
-      WPAPERS.map((w, i) => `<button class="wpswatch ${!custom && i === +(localStorage.cw_wpaper || 0) ? 'on' : ''}" data-i="${i}" style="background:${w.css}"><span>${w.name}</span></button>`).join('') +
-      (custom ? `<button class="wpswatch on" data-i="custom" style="background:url(${localStorage.cw_wpaper_img}) center/cover"><span>Galeri</span></button>` : '') +
-    `</div>
-    <label class="ghost" style="display:block;text-align:center;padding:13px;border-radius:12px;border:1px solid var(--line);cursor:pointer">🖼️ Pilih dari galeri…<input type="file" id="wfile" accept="image/*" hidden></label>
-    ${custom ? '<button id="wdel" class="ghost" style="border-color:#ff8a8a;color:#ff8a8a">🗑 Hapus wallpaper galeri</button>' : ''}
-    <button id="cls4" class="ghost">Tutup</button>`;
-  $('#view').appendChild(el);
-  el.querySelector('#cls4').onclick = () => el.remove();
-  el.querySelector('#wdel')?.addEventListener('click', () => {
-    delete localStorage.cw_wpaper_img; localStorage.cw_wpaper = 0;
-    applyWPaper(); toast('Wallpaper galeri dihapus'); el.remove(); paperMenu();
-  });
-  el.querySelectorAll('.wpswatch[data-i]').forEach(b => b.onclick = () => {
-    if (b.dataset.i === 'custom') return;
-    localStorage.cw_wpaper = b.dataset.i;
-    applyWPaper(); el.remove(); paperMenu();
-  });
-  el.querySelector('#wfile').onchange = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    el.remove(); cropWallpaper(f);
-  };
-}
-
-// ---------- CROP WALLPAPER (lingkaran = layar jam) ----------
-function cropWallpaper(file) {
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    const Z = 240; // ukuran cropzone px
-    const base = Math.max(Z / img.width, Z / img.height);
-    let z = 1, dx = 0, dy = 0;
-    const el = document.createElement('div'); el.className = 'settings card';
-    el.innerHTML = `<h3>✂️ Atur wallpaper</h3>
-      <div class="cropzone"><img id="cropimg" src="${url}" draggable="false"></div>
-      <input type="range" id="cropzoom" min="1" max="3" step="0.01" value="1">
-      <div class="muted" style="font-size:12px">geser &amp; zoom — lingkaran = layar jam</div>
-      <button id="cropsave">Pasang</button><button id="cropcancel" class="ghost">Batal</button>`;
-    $('#view').appendChild(el);
-    const ci = el.querySelector('#cropimg');
-    const draw = () => { ci.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${base * z})`; };
-    ci.style.transformOrigin = 'center'; ci.onload = draw; draw();
-    let drag = null;
-    const zone = el.querySelector('.cropzone');
-    zone.onpointerdown = (e) => { drag = { x: e.clientX - dx, y: e.clientY - dy }; zone.setPointerCapture(e.pointerId); };
-    zone.onpointermove = (e) => { if (!drag) return; dx = e.clientX - drag.x; dy = e.clientY - drag.y; draw(); };
-    zone.onpointerup = () => drag = null;
-    el.querySelector('#cropzoom').oninput = (e) => { z = +e.target.value; draw(); };
-    el.querySelector('#cropcancel').onclick = () => { URL.revokeObjectURL(url); el.remove(); paperMenu(); };
-    el.querySelector('#cropsave').onclick = () => {
-      const s = base * z, dw = img.width * s, dh = img.height * s;
-      const left = (Z - dw) / 2 + dx, top = (Z - dh) / 2 + dy;
-      const c = document.createElement('canvas'); c.width = c.height = 600;
-      c.getContext('2d').drawImage(img, -left / s, -top / s, Z / s, Z / s, 0, 0, 600, 600);
-      try {
-        localStorage.cw_wpaper_img = c.toDataURL('image/jpeg', .82);
-        localStorage.cw_wpaper = 'custom';
-        applyWPaper(); toast('Wallpaper dipasang 🖼️');
-      } catch { toast('Gambar terlalu besar'); }
-      URL.revokeObjectURL(url); el.remove(); paperMenu();
-    };
-  };
-  img.src = url;
-}
 
 // ---------- VOICE NOTES ----------
 let vrec = null, vchunks = [], vstart = 0, vtimer = null;
@@ -1337,13 +1054,14 @@ function setupVoice() {
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      vrec = new MediaRecorder(stream); vchunks = []; vstart = Date.now();
+      const mime = ['audio/mp4', 'audio/webm', 'audio/ogg', 'audio/mpeg'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+      vrec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}); vchunks = []; vstart = Date.now();
       vrec.ondataavailable = e => vchunks.push(e.data);
       vrec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
         const dur = (Date.now() - vstart) / 1000;
         if (dur < 0.5) { st.textContent = 'terlalu pendek — tahan lebih lama'; return; }
-        const blob = new Blob(vchunks, { type: vrec.mimeType || 'audio/webm' });
+        const blob = new Blob(vchunks, { type: vrec.mimeType || 'audio/mp4' });
         const reader = new FileReader();
         reader.onload = async () => {
           const r = await api('/voice', { method: 'POST', body: { audio: reader.result, dur } });
@@ -1510,12 +1228,15 @@ function settings() {
     <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
     <div class="hqin" style="margin-top:8px"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
     <button id="aipSet" class="ghost">✦ Profil bestie (${esc(me.user.ai_name || 'belum dinamai')})</button>
-    <button id="wpSet" class="ghost">🎨 Wallpaper jam</button>
+    <div class="hqin" style="margin-top:8px"><input id="meetIn" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">✈️</button></div>
+    <div class="muted" style="font-size:11px">↑ tanggal ketemu kalian berikutnya (countdown di Home)</div>
     <button id="hist" class="ghost">💓 Riwayat kangen</button>
     <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
     <button id="wrapYr" class="ghost">🗓️ Rekap ${new Date().getFullYear()}</button>
     <button id="exportBtn" class="ghost">⬇️ Export semua data</button>
+    <button id="tourBtn" class="ghost">🧭 Tour aplikasi</button>
     ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
+    ${!deferredInstall && /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone ? '<button id="iosInstall" class="ghost">📲 Cara install di iPhone</button>' : ''}
     <div class="muted" style="text-align:left;font-size:12px">Tema:</div>
     <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
@@ -1551,9 +1272,17 @@ function settings() {
   };
   el.querySelector('#hist').onclick = missHistory;
   el.querySelector('#aipSet').onclick = () => { el.remove(); aiProfile(); };
-  el.querySelector('#wpSet').onclick = () => { el.remove(); paperMenu(); };
   const ins = el.querySelector('#install');
   if (ins) ins.onclick = async () => { deferredInstall?.prompt(); deferredInstall = null; ins.remove(); };
+  const ios = el.querySelector('#iosInstall');
+  if (ios) ios.onclick = () => toast('Di Safari: tap Share (kotak panah ke atas) → "Add to Home Screen"', 7000);
+  el.querySelector('#meetBtn').onclick = async () => {
+    const dv = el.querySelector('#meetIn').value; if (!dv) return toast('Pilih tanggal dulu');
+    const ts = new Date(dv + 'T12:00:00').getTime();
+    await api('/meet', { method: 'POST', body: { ts } });
+    me.pair.next_meet = ts; toast('Tanggal ketemu disimpan ✈️');
+  };
+  el.querySelector('#tourBtn').onclick = () => { el.remove(); delete localStorage.cw_toured; tour(); };
   el.querySelector('#brk').onclick = async () => {
     if (confirm('Yakin putus pair? Semua data jadwal & kangen dihapus.')) { await api('/pair/break', { method: 'POST' }); location.reload(); }
   };
@@ -1574,8 +1303,39 @@ async function missHistory() {
   el.querySelector('#cls2').onclick = () => el.remove();
 }
 
+// ---------- TOUR (first-run guide) ----------
+function tour() {
+  if (localStorage.cw_toured) return;
+  const steps = [
+    ['🌊', `Ryora Watch`, `Ruang berdua kamu & ${esc(me.partner.name)}. Semua yang kalian butuhin buat LDR ada di sini.`],
+    ['🏠', 'Home', `Lihat status dia, jawab pertanyaan harian, kirim catatan kecil & foto. Feed aktivitas kalian juga ada di sini.`],
+    ['💓', 'Kangen', `Cara bilang kangen TANPA ngetik: tap 💓, tahan sentuh bareng, adu suit, truth or dare, voice note, doodle, surat.`],
+    ['🗺️', 'Peta & Jadwal', `Lokasi live dia (perlu izin GPS) + jadwal & kalender bareng, bucket list mimpi kalian.`],
+    ['✦', `Bestie ${esc(me.user.ai_name || 'AI')}`, `Ngobrol apa aja — dia inget hal yang kamu ceritakan ("ingat ya aku suka…"). Bisa pakai suara 🎙️.`],
+  ];
+  let i = 0;
+  const el = document.createElement('div'); el.className = 'tour';
+  const draw = () => {
+    const s = steps[i];
+    el.innerHTML = `<div class="tourcard">
+      <div class="tdots">${steps.map((_, j) => `<i class="${j === i ? 'on' : j < i ? 'done' : ''}"></i>`).join('')}</div>
+      <div class="temoji">${s[0]}</div>
+      <b>${s[1]}</b>
+      <p>${s[2]}</p>
+      <div class="tbtns">
+        ${i < steps.length - 1 ? '<button id="tSkip" class="ghost">Lewati</button><button id="tNext">Lanjut →</button>' : '<button id="tDone" style="flex:1">Mulai 🌊</button>'}
+      </div>
+    </div>`;
+    el.querySelector('#tNext') && (el.querySelector('#tNext').onclick = () => { i++; draw(); });
+    el.querySelector('#tSkip') && (el.querySelector('#tSkip').onclick = close);
+    el.querySelector('#tDone') && (el.querySelector('#tDone').onclick = close);
+  };
+  const close = () => { localStorage.cw_toured = '1'; el.remove(); };
+  draw(); document.body.appendChild(el);
+}
+
 // ---------- INIT ----------
 if (localStorage.cw_theme) document.documentElement.dataset.theme = localStorage.cw_theme;
-Notification?.permission === 'default' && Notification.requestPermission();
+if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 if (token) boot(); else authScreen();
