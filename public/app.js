@@ -211,7 +211,8 @@ async function mainUI() {
   // bestie proaktif — check-in random tiap ~45-95 menit selama app kebuka
   const pingLoop = () => setTimeout(async () => {
     try {
-      if (!document.hidden) {
+      const hr = new Date().getHours();
+      if (!document.hidden && hr >= 7 && hr < 22) { // quiet hours — jangan ganggu malam-malam
         const r = await api('/ai/ping', { method: 'POST' });
         if (r?.greeting) {
           toast(`✦ ${aiName()}: ${r.greeting}`, 8000);
@@ -476,7 +477,7 @@ function startGeo() {
       else markers.me.setLatLng([myLoc.lat, myLoc.lng]);
     }
     fitBoth(); updateTogether();
-  }, e => { if (e.code === 1) { geoState = 'denied'; renderGeoCard(); } }, { enableHighAccuracy: true });
+  }, e => { if (e.code === 1) { geoState = 'denied'; renderGeoCard(); } }, { enableHighAccuracy: true, maximumAge: 30000 });
 }
 
 function askGeo() {

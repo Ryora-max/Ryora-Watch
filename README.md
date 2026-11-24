@@ -1,35 +1,40 @@
-# Ryora Watch
+# Ryora Watch 🌊
 
-Jam tangan DIY berbasis IoT (ESP32) untuk **tepat 2 orang** — pasangan eksklusif.
+PWA couple-only companion — aplikasi berdua untuk kamu & pasangan. Express + Socket.IO + SQLite, installable di HP (Add to Home Screen).
 
-**Fitur:**
-- 📅 Jadwal harian bersama (sinkron + getar reminder)
-- 🗺️ Live location ala Google Maps (peta penuh di HP, mini-map di jam)
-- 🤖 AI companion — ngobrol suara realtime langsung dari jam, tombol on/off khusus
-- 💓 Tombol kangen — jam pasangan getar + animasi hati
-- 🔋 Status pasangan di watchface
+## Fitur
 
-**Arsitektur singkat:** `Jam ESP32 ──BLE──> App HP (Flutter) ──> Server Node.js ──> App pasangan`
+**🏠 Home**
+- Kartu pasangan: mood, status, online/jarak, lagu kalian
+- Pertanyaan harian berdua, catatan kecil, foto harian (dengan caption), album kenangan + "hari ini N lalu"
+- Mood tracker seminggu, streak harian, countdown monthsary/ultah/ketemu
 
-## Dokumentasi
+**🗺️ Peta**
+- Live location dua arah, trail 1 jam, love-line animasi
+- Toggle share lokasi (hemat baterai/privasi)
 
-- 📋 [docs/RENCANA.md](docs/RENCANA.md) — spesifikasi lengkap: fitur, arsitektur, flow koneksi, skema data, protokol, tahapan
-- 🔩 [docs/BOM.md](docs/BOM.md) — daftar komponen & estimasi biaya (~Rp0,8–1,8jt untuk 2 jam; rekomendasi: **LilyGO T-Watch S3**, tanpa solder)
-- 🔧 [docs/ASSEMBLY.md](docs/ASSEMBLY.md) — panduan merakit untuk tiap opsi hardware
+**📅 Jadwal**
+- Jadwal bersama + reminder 2 fase (5 menit sebelum + pas mulai, AI bicara)
+- Jadwal berulang (harian/mingguan), kalender, bucket list
+- Ajakan quality time 1-tap: ☕ Call · 🎬 Nobar · 🍽️ Date
 
-## Status
+**💓 Kangen**
+- Tap kangen pola, sentuh bareng (touch sync), care pings (makan/minum/peluk/tidur)
+- Suit skor persisten, Truth or Dare, nobar countdown sinkron
+- Voice note, doodle, surat cinta, kado kejutan terkunci-waktu
+- Mood sedih → prompt "peluk dia" otomatis
 
-Fase: **web app v1 jalan** — pairing, peta live, jadwal+reminder, kangen, AI (Gemini), PWA installable. Jam fisik = tahap berikutnya.
+**✦ Bestie AI (Gemini)**
+- Chat teks + voice mode: ngobrol kontinyu hands-free (Edge TTS, cowo/cewe)
+- Sapaan pagi kontekstual + check-in proaktif siang hari
+- Tahu jadwal, lokasi, mood kalian; memory fakta
 
-## Demo online instan (tanpa deploy)
+**✨ Lainnya**
+- Web Push notif OS (kangen/ping/foto masuk walau app ketutup)
+- Rekap bulanan/tahunan → PNG siap story, heatmap aktivitas
+- Kode cadangan akun, export data, 5 tema, tour guide, iOS-friendly
 
-```bash
-npm start                 # server jalan di :3000
-./cloudflared.exe tunnel --url http://localhost:3000
-# → dapat https://xxx.trycloudflare.com — buka di HP berdua, pairing, GPS jalan (HTTPS)
-```
-
-## Menjalankan lokal
+## Menjalankan
 
 ```bash
 cp .env.example .env   # isi GEMINI_API_KEY (gratis: aistudio.google.com/apikey)
@@ -37,12 +42,20 @@ npm install
 npm start              # → http://localhost:3000
 ```
 
-## Deploy (HTTPS — wajib untuk GPS di HP)
+## Demo instan (laptop + tunnel)
 
-**Render** (file `render.yaml` sudah disiapkan):
-1. Push repo ke GitHub → render.com → New → Blueprint → pilih repo
-2. Isi `GEMINI_API_KEY` di env vars → Deploy → dapat `https://xxx.onrender.com`
+```bash
+start-ryora.bat        # server + cloudflared tunnel — copy URL https-nya
+# buka di HP berdua → Add to Home Screen → pairing → GPS & push jalan
+```
 
-**Railway**: New Project → Deploy from GitHub → set `GEMINI_API_KEY` → generate domain.
+## Deploy permanen
 
-Setelah deploy, buka URL HTTPS-nya di HP masing-masing → Add to Home Screen → pairing → GPS & getar jalan.
+`render.yaml` siap — render.com → Blueprint → pilih repo → isi `GEMINI_API_KEY`. (Free tier Render sekarang minta kartu; alternatif: Koyeb.)
+
+## Catatan teknis
+
+- `server/store.js` — SQLite via `node:sqlite` (DatabaseSync)
+- `public/sw.js` — network-first + Web Push handler
+- `.devin/` skill config — n/a; repo ini murni Node
+- Widget Android homescreen butuh build APK (scaffolding di `android/`, perlu Android Studio)
