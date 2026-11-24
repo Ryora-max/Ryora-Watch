@@ -1,14 +1,14 @@
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 :root {
-  --bg:#123a6e; --bg2:#1d4a85; --card:rgba(255,255,255,.1); --line:rgba(255,255,255,.16);
-  --accent:#5cc8ff; --accent2:#4fd8c0; --text:#f2f8ff; --dim:#a9c4e8;
+  --bg:#123a6e; --bg2:#1d4a85; --card:rgba(255,255,255,.13); --line:rgba(255,255,255,.2);
+  --accent:#5cc8ff; --accent2:#4fd8c0; --text:#f7fbff; --dim:#d3e4fb;
   --grad:linear-gradient(135deg,#5cc8ff,#4fd8c0);
   --shadow:#0006;
   --wbg:linear-gradient(165deg,#5cc8ff,#1e6fb8);
 }
 [data-theme=light] {
   --bg:#eaf4ff; --bg2:#fff; --card:rgba(10,50,110,.06); --line:rgba(10,50,110,.12);
-  --text:#0e2a4d; --dim:#5a7396; --shadow:#5a739133;
+  --text:#0a2547; --dim:#41597d; --shadow:#5a739133;
 }
 html,body { height:100%; }
 body { background:radial-gradient(900px 600px at 50% -15%,#5cc8ff88,transparent),
@@ -301,11 +301,11 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .touchbtn:active{transform:scale(.97)}
 
 /* --- themes: sakura / lavender / forest --- */
-[data-theme=sakura] { --bg:#4e1f38; --bg2:#6d2a4d; --card:rgba(255,255,255,.1); --line:rgba(255,200,220,.2); --accent:#ff9ec7; --accent2:#ffd1e3; --text:#fff2f8; --dim:#e5aec9; --grad:linear-gradient(135deg,#ff9ec7,#ffc8dd); }
+[data-theme=sakura] { --bg:#4e1f38; --bg2:#6d2a4d; --card:rgba(255,255,255,.13); --line:rgba(255,200,220,.24); --accent:#ff9ec7; --accent2:#ffd1e3; --text:#fff7fb; --dim:#f5cee0; --grad:linear-gradient(135deg,#ff9ec7,#ffc8dd); }
 [data-theme=sakura] body { background:radial-gradient(900px 600px at 50% -15%,#ff9ec766,transparent),linear-gradient(180deg,#8e3a63 0%,#5e2547 45%,#38122c 100%); }
-[data-theme=lavender] { --bg:#2e2260; --bg2:#40307e; --card:rgba(255,255,255,.1); --line:rgba(200,180,255,.2); --accent:#b79aff; --accent2:#8fd4ff; --text:#f4f0ff; --dim:#c3b6ea; --grad:linear-gradient(135deg,#b79aff,#8fd4ff); }
+[data-theme=lavender] { --bg:#2e2260; --bg2:#40307e; --card:rgba(255,255,255,.13); --line:rgba(200,180,255,.24); --accent:#b79aff; --accent2:#8fd4ff; --text:#f8f5ff; --dim:#dcd4f7; --grad:linear-gradient(135deg,#b79aff,#8fd4ff); }
 [data-theme=lavender] body { background:radial-gradient(900px 600px at 50% -15%,#b79aff66,transparent),linear-gradient(180deg,#5a46a8 0%,#3a2c78 45%,#1c1447 100%); }
-[data-theme=forest] { --bg:#0f3527; --bg2:#174f3a; --card:rgba(255,255,255,.1); --line:rgba(160,240,200,.2); --accent:#6fe3b1; --accent2:#a8e6cf; --text:#effaf4; --dim:#a3d5c0; --grad:linear-gradient(135deg,#6fe3b1,#a8e6cf); }
+[data-theme=forest] { --bg:#0f3527; --bg2:#174f3a; --card:rgba(255,255,255,.13); --line:rgba(160,240,200,.24); --accent:#6fe3b1; --accent2:#a8e6cf; --text:#f4fcf8; --dim:#c8ecdc; --grad:linear-gradient(135deg,#6fe3b1,#a8e6cf); }
 [data-theme=forest] body { background:radial-gradient(900px 600px at 50% -15%,#6fe3b155,transparent),linear-gradient(180deg,#1f6b4d 0%,#114736 45%,#082a20 100%); }
 [data-theme=sakura] .code,[data-theme=lavender] .code,[data-theme=forest] .code { color:var(--accent); }
 
