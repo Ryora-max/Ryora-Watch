@@ -360,7 +360,7 @@ async function refreshMissStat() {
   const el = $('#daystat');
   if (!el) return;
   const nxt = nextSchedText();
-  el.textContent = `💕 hari ke-${daysTogether()}${nxt ? ' · ' + nxt : ''}${s.sent || s.received ? ` · 💓 ↑${s.sent} ↓${s.received}` : ''}`;
+  el.textContent = `💕 hari ke-${daysTogether()}${nxt ? ' · ' + nxt : ''}`;
 }
 
 // ---------- KANGEN ----------
@@ -464,7 +464,6 @@ function show(tab) {
   }
   if (tab === 'miss') {
     v.innerHTML = `<div class="misspage">
-      <div class="missttl">💓 Kangen</div>
       <button id="missBig"><span class="hb">💓</span><span id="tapN"></span></button>
       <div class="muted">tap berkali-kali buat sinyal lebih kuat</div>
       <div class="missstats" id="missStats"></div>
