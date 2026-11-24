@@ -1308,15 +1308,20 @@ async function loadSchedules() {
   schedCache = await api('/schedules');
   const now = Date.now();
   const until = (t) => { const m = Math.round((t - now) / 60000); if (m <= 0) return 'sekarang'; if (m < 60) return m + ' mnt lagi'; if (m < 1440) return Math.round(m / 60) + ' jam lagi'; return Math.round(m / 1440) + ' hari lagi'; };
-  $('#slist').innerHTML = schedCache.map(s => ({ s, t: nextOcc(s) })).sort((a, b) => a.t - b.t).map(({ s, t }) => {
+  const tmr = new Date(now + 86400000);
+  const dayLabel = (d) => d.toDateString() === new Date().toDateString() ? '📍 Hari ini' : d.toDateString() === tmr.toDateString() ? 'Besok' : d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+  const items = schedCache.map(s => ({ s, t: nextOcc(s) })).sort((a, b) => a.t - b.t);
+  let html = '', lastDay = '';
+  for (const { s, t } of items) {
+    const d = new Date(t), dl = dayLabel(d);
+    if (dl !== lastDay) { html += `<div class="dayh">${dl}</div>`; lastDay = dl; }
     const active = t <= now && (s.end_time || t + 3600000) > now;
-    const d = new Date(t);
-    const dayLabel = d.toDateString() === new Date().toDateString() ? 'hari ini' : d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-    return `<div class="item ${active ? 'now' : ''}">
-      <div class="itemtime"><b>${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</b><span>${dayLabel}</span></div>
-      <div class="itembody"><div>${sicon(s.title)} ${esc(s.title)}${s.repeat ? ' 🔁' : ''}</div><span class="chip">${active ? '🔥 berlangsung' : '⏳ ' + until(t)}</span></div>
-      <button class="del" data-id="${s.id}">🗑</button></div>`;
-  }).join('') || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
+    html += `<div class="item ${active ? 'now' : ''}">
+      <div class="itemtime"><b>${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</b><span>${s.repeat ? '🔁' : ''}</span></div>
+      <div class="itembody"><div>${sicon(s.title)} ${esc(s.title)}</div><span class="chip ${active ? 'live' : ''}">${active ? '🔥 berlangsung sekarang' : '⏳ ' + until(t)}</span></div>
+      <button class="del" data-id="${s.id}" title="Hapus">🗑</button></div>`;
+  }
+  $('#slist').innerHTML = html || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => { await api('/schedules/' + b.dataset.id, { method: 'DELETE' }); schedCache = await api('/schedules'); loadSchedules(); });
 }
 
