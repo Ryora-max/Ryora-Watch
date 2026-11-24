@@ -617,7 +617,7 @@ function show(tab) {
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
-    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="top:60px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
+    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
     $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
     $('#pinBtn').onclick = async () => {
       if (!myLoc) return toast('Lokasimu belum ada — nyalakan GPS dulu');
@@ -815,6 +815,9 @@ function renderKita(v) {
       <div class="hsub" style="margin-top:2px">lagu kalian:</div>
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
+    <div class="msect"><b>📊 Statistik kalian</b>
+      <div class="statgrid" id="statGrid"><div class="hsub">memuat…</div></div>
+    </div>
     <div class="msect"><b>🎨 Tema</b>
       <div class="themrow">${[['', '🌊', 'Langit'], ['dark', '🌙', 'Gelap'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
@@ -858,6 +861,23 @@ function renderKita(v) {
     localStorage.cw_theme = b.dataset.t;
     v.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
   });
+  // statistik pasangan — gabungan beberapa endpoint
+  (async () => {
+    const grid = q('#statGrid'); if (!grid) return;
+    const [ms, ss, mems, pins] = await Promise.all([
+      api('/miss/stats').catch(() => null), api('/suit/stats').catch(() => null),
+      api('/memories').catch(() => []), api('/pins').catch(() => []),
+    ]);
+    const w = (g) => { const s = ss?.[g]; return s ? `${s.w}–${s.l}` : '0–0'; };
+    grid.innerHTML = [
+      ['💓', (ms?.sent || 0) + (ms?.received || 0), 'kangen minggu ini'],
+      ['🔥', ms?.streak || 0, 'streak hari'],
+      ['🖼️', (mems || []).length, 'kenangan'],
+      ['📌', (pins || []).length, 'tempat favorit'],
+      ['✊', w('suit'), 'suit (kamu–dia)'],
+      ['⭕', w('ttt'), 'xoxo (kamu–dia)'],
+    ].map(([e, n, l]) => `<div class="statcell"><b>${e} ${n}</b><span>${l}</span></div>`).join('');
+  })();
   q('#bakBtn').onclick = () => { const b = q('#bakBox'); b.style.display = b.style.display === 'none' ? '' : 'none'; };
   q('#bakCopy').onclick = async () => {
     try { await navigator.clipboard.writeText(localStorage.cw_token || ''); toast('Kode disalin 📋 — simpan di tempat aman!'); }

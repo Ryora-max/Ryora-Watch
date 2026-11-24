@@ -236,6 +236,11 @@ select option { background:#12233f; color:#f2f8ff; }
 .qa i { font-style:normal; color:var(--dim); font-size:11px; }
 .qa.hit { color:var(--accent2); }
 .qa.miss { color:var(--dim); }
+/* statistik kalian di tab Kita */
+.statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.statcell { background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 6px; text-align:center; }
+.statcell b { display:block; font-size:15px; }
+.statcell span { font-size:10px; color:var(--dim); }
 /* overlay nobar */
 .nobarOv { position:fixed; inset:0; z-index:950; background:#050f1ecc; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
 .nobx { text-align:center; display:flex; flex-direction:column; gap:10px; padding:30px; }
