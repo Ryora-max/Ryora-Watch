@@ -76,6 +76,10 @@ CREATE TABLE IF NOT EXISTS push_subs (
 CREATE TABLE IF NOT EXISTS letters (
   id INTEGER PRIMARY KEY AUTOINCREMENT, pair_id TEXT, user_id TEXT, title TEXT, text TEXT, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS capsules (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
+  text TEXT, unlock_ts INTEGER, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -84,7 +88,11 @@ try { db.exec('ALTER TABLE users ADD COLUMN last_seen INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN ai_name TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN ai_gender TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN status TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN pet_name TEXT'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN next_meet INTEGER'); } catch {}
+try { db.exec('ALTER TABLE pairs ADD COLUMN since INTEGER'); } catch {}
+try { db.exec('ALTER TABLE pairs ADD COLUMN song TEXT'); } catch {}
 
 const id = () => randomBytes(8).toString('hex');
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -104,7 +112,17 @@ export const store = {
   setAiName: (uid, name) => db.prepare('UPDATE users SET ai_name=? WHERE id=?').run(name, uid),
   setAiGender: (uid, g) => db.prepare('UPDATE users SET ai_gender=? WHERE id=?').run(g, uid),
   setStatus: (uid, s) => db.prepare('UPDATE users SET status=? WHERE id=?').run(s, uid),
+  setProfile: (uid, { name, avatar, pet_name }) => {
+    if (name != null) db.prepare('UPDATE users SET name=? WHERE id=?').run(String(name).trim().slice(0, 30), uid);
+    if (avatar != null) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(String(avatar).slice(0, 8), uid);
+    if (pet_name != null) db.prepare('UPDATE users SET pet_name=? WHERE id=?').run(String(pet_name).trim().slice(0, 30), uid);
+  },
   setNextMeet: (pairId, ts) => db.prepare('UPDATE pairs SET next_meet=? WHERE id=?').run(ts, pairId),
+  setSince: (pairId, ts) => db.prepare('UPDATE pairs SET since=? WHERE id=?').run(ts, pairId),
+  setSong: (pairId, s) => db.prepare('UPDATE pairs SET song=? WHERE id=?').run(String(s || '').slice(0, 80), pairId),
+  capsules: (pairId) => db.prepare('SELECT c.*, u.name from_name FROM capsules c JOIN users u ON u.id=c.user_id WHERE c.pair_id=? ORDER BY c.unlock_ts').all(pairId),
+  addCapsule: (pairId, uid, text, unlock_ts) => db.prepare('INSERT INTO capsules (id,pair_id,user_id,text,unlock_ts,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, text, unlock_ts, Date.now()),
+  delCapsule: (pairId, cid, uid) => db.prepare('DELETE FROM capsules WHERE pair_id=? AND id=? AND user_id=?').run(pairId, cid, uid),
 
   addChatMsg: (uid, role, text) => db.prepare('INSERT INTO chat_msgs (user_id,role,text,ts) VALUES (?,?,?,?)').run(uid, role, text, Date.now()),
   chatHistory: (uid, limit = 12) => db.prepare('SELECT role,text FROM chat_msgs WHERE user_id=? ORDER BY id DESC LIMIT ?').all(uid, limit).reverse(),
@@ -140,7 +158,7 @@ export const store = {
     store.breakPairAll?.(pairId);
   },
   pairOf: (userId) => db.prepare('SELECT p.* FROM pairs p JOIN users u ON u.pair_id=p.id WHERE u.id=?').get(userId),
-  partnerOf: (user) => db.prepare('SELECT id,name,mood,last_seen,status FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
+  partnerOf: (user) => db.prepare('SELECT id,name,avatar,mood,last_seen,status FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
 
   addSchedule: (s) => { db.prepare('INSERT INTO schedules (id,pair_id,title,note,start_time,end_time,notify,created_by) VALUES (?,?,?,?,?,?,?,?)')
     .run(s.id || id(), s.pair_id, s.title, s.note || null, s.start, s.end || null, s.notify ? 1 : 0, s.by || null); },
@@ -268,5 +286,6 @@ export const store = {
     db.prepare('DELETE FROM memories WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM voices WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM reactions WHERE pair_id=?').run(pairId);
+    db.prepare('DELETE FROM capsules WHERE pair_id=?').run(pairId);
   },
 };

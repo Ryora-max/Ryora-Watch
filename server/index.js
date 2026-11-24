@@ -80,7 +80,7 @@ app.post('/api/pair/break', auth, (req, res) => {
 app.get('/api/me', auth, (req, res) => {
   const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
   const pair = req.user.pair_id ? store.pairOf(req.user.id) : null;
-  res.json({ user: { id: req.user.id, name: req.user.name, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
+  res.json({ user: { id: req.user.id, name: req.user.name, avatar: req.user.avatar, pet_name: req.user.pet_name, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
 });
 
 app.post('/api/ai/toggle', auth, (req, res) => {
@@ -337,6 +337,52 @@ app.get('/api/tts', auth, async (req, res) => {
 });
 
 // --- Status text, countdown ketemu, kenangan ---
+app.post('/api/profile', auth, (req, res) => {
+  const { name, avatar, pet_name } = req.body || {};
+  if (name != null && !String(name).trim()) return res.status(400).json({ error: 'nama kosong' });
+  store.setProfile(req.user.id, { name, avatar, pet_name });
+  if (req.user.pair_id) io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+app.post('/api/pair/since', auth, (req, res) => {
+  const ts = +req.body?.ts;
+  if (!ts || ts > Date.now() || !req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.setSince(req.user.pair_id, ts);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+app.post('/api/song', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  store.setSong(req.user.pair_id, req.body?.text);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+// --- Kado kejutan (time capsule) — pesan terkunci sampai tanggal buka ---
+app.get('/api/capsules', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  const now = Date.now();
+  res.json(store.capsules(req.user.pair_id).map(c => ({
+    id: c.id, user_id: c.user_id, from_name: c.from_name, unlock_ts: c.unlock_ts, ts: c.ts,
+    mine: c.user_id === req.user.id, locked: c.unlock_ts > now,
+    text: c.unlock_ts <= now || c.user_id === req.user.id ? c.text : null,
+  })));
+});
+app.post('/api/capsule', auth, (req, res) => {
+  const { text, unlock_ts } = req.body || {};
+  if (!req.user.pair_id || !text?.trim() || !unlock_ts) return res.status(400).json({ error: 'invalid' });
+  if (unlock_ts <= Date.now()) return res.status(400).json({ error: 'tanggal harus di masa depan' });
+  store.addCapsule(req.user.pair_id, req.user.id, String(text).slice(0, 1000), +unlock_ts);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+app.delete('/api/capsule/:id', auth, (req, res) => {
+  store.delCapsule(req.user.pair_id, req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
 app.post('/api/status', auth, (req, res) => {
   const s = String(req.body?.text || '').slice(0, 40);
   store.setStatus(req.user.id, s);
