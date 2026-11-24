@@ -818,7 +818,7 @@ function renderKita(v) {
     <div class="msect"><b>🎨 Tema</b>
       <div class="themrow">${[['', '🌊', 'Langit'], ['dark', '🌙', 'Gelap'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
-    <div class="msect"><b>📦 Lainnya</b>
+    <details class="msect mfold"><summary>📦 Lainnya</summary>
       <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
       <div id="bakBox" style="display:none" class="bakbox">
         <div class="hsub">Simpan kode ini baik-baik — kalau ganti HP / data kehapus, masuk pakai kode ini biar akun &amp; pair-mu balik.</div>
@@ -832,7 +832,7 @@ function renderKita(v) {
       ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
       ${!deferredInstall && /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone ? '<button id="iosInstall" class="ghost">📲 Cara install di iPhone</button>' : ''}
       <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
-    </div>
+    </details>
   </div>`;
   const q = (s) => v.querySelector(s);
   q('#petBtn').onclick = async () => {
