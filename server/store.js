@@ -80,6 +80,16 @@ CREATE TABLE IF NOT EXISTS capsules (
   id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT,
   text TEXT, unlock_ts INTEGER, ts INTEGER
 );
+CREATE TABLE IF NOT EXISTS pins (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT, name TEXT, lat REAL, lng REAL, ts INTEGER
+);
+CREATE TABLE IF NOT EXISTS quiz (
+  id TEXT PRIMARY KEY, pair_id TEXT, day TEXT, user_id TEXT, answers TEXT, ts INTEGER,
+  UNIQUE(pair_id, day, user_id)
+);
+CREATE TABLE IF NOT EXISTS quiz_guesses (
+  quiz_id TEXT, user_id TEXT, guesses TEXT, ts INTEGER, PRIMARY KEY(quiz_id, user_id)
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -96,6 +106,7 @@ try { db.exec('ALTER TABLE pairs ADD COLUMN song TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN bday TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN dnd_from INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
+try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 
 const id = () => randomBytes(8).toString('hex');
@@ -259,8 +270,20 @@ export const store = {
     db.prepare('DELETE FROM mood_log WHERE user_id=? AND ts<?').run(uid, Date.now() - 30 * 86400000);
   },
   moodWeek: (pairId, since) => db.prepare('SELECT user_id, mood, ts FROM mood_log WHERE pair_id=? AND ts>? ORDER BY ts').all(pairId, since),
-  suitAdd: (pairId, winnerId) => db.prepare('INSERT INTO suit_results (pair_id,winner_id,ts) VALUES (?,?,?)').run(pairId, winnerId, Date.now()),
+  suitAdd: (pairId, winnerId, game = 'suit') => db.prepare('INSERT INTO suit_results (pair_id,winner_id,game,ts) VALUES (?,?,?,?)').run(pairId, winnerId, game, Date.now()),
   suitStats: (pairId) => db.prepare('SELECT winner_id, COUNT(*) n FROM suit_results WHERE pair_id=? GROUP BY winner_id').all(pairId),
+  scoreWeek: (pairId, since) => db.prepare('SELECT game, winner_id, COUNT(*) n FROM suit_results WHERE pair_id=? AND ts>? GROUP BY game, winner_id').all(pairId, since),
+
+  // --- tempat favorit ---
+  addPin: (pairId, uid, name, lat, lng) => { db.prepare('INSERT INTO pins (id,pair_id,user_id,name,lat,lng,ts) VALUES (?,?,?,?,?,?,?)').run(id(), pairId, uid, name, lat, lng, Date.now()); },
+  pins: (pairId) => db.prepare('SELECT p.*, u.name by_name FROM pins p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? ORDER BY p.ts DESC').all(pairId),
+  delPin: (pairId, pinId, uid) => db.prepare('DELETE FROM pins WHERE pair_id=? AND id=? AND user_id=?').run(pairId, pinId, uid),
+
+  // --- quiz kenal ---
+  quizGet: (pairId, day, uid) => db.prepare('SELECT q.*, u.name by_name FROM quiz q JOIN users u ON u.id=q.user_id WHERE q.pair_id=? AND q.day=? AND q.user_id=?').get(pairId, day, uid),
+  quizSet: (pairId, day, uid, answers) => db.prepare('INSERT INTO quiz (id,pair_id,day,user_id,answers,ts) VALUES (?,?,?,?,?,?) ON CONFLICT(pair_id,day,user_id) DO UPDATE SET answers=excluded.answers, ts=excluded.ts').run(id(), pairId, day, uid, JSON.stringify(answers), Date.now()),
+  quizGuessSet: (quizId, uid, guesses) => db.prepare('INSERT INTO quiz_guesses (quiz_id,user_id,guesses,ts) VALUES (?,?,?,?) ON CONFLICT(quiz_id,user_id) DO UPDATE SET guesses=excluded.guesses, ts=excluded.ts').run(quizId, uid, JSON.stringify(guesses), Date.now()),
+  quizGuessGet: (quizId, uid) => db.prepare('SELECT * FROM quiz_guesses WHERE quiz_id=? AND user_id=?').get(quizId, uid),
   activityDays: (pairId, since) => {
     const days = {};
     const add = ts => { const d = new Date(ts).toDateString(); days[d] = (days[d] || 0) + 1; };

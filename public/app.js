@@ -398,6 +398,26 @@ function connectSocket() {
     toast(`⭕ XOXO mulai — kamu ${tttMark === 'x' ? '❌ jalan duluan' : '⭕'}!`, 4000);
   });
   socket.on('ttt:state', (g) => { tttG = g; renderTtt(g); });
+  // tebak doodle
+  socket.on('guess:start', ({ from }) => {
+    ding(); toast(`🧩 ${from} mulai gambar — tebak apa!`, 4000);
+    if (currentTab !== 'miss') { document.querySelectorAll('nav button').forEach(b => b.classList.remove('on')); document.querySelector('[data-t="miss"]')?.classList.add('on'); show('miss'); }
+    guessMode('guess');
+  });
+  socket.on('guess:stroke', (d) => {
+    const cv = $('#guessCv'); if (!cv || guessRole !== 'guess') return;
+    const cx = cv.getContext('2d');
+    cx.strokeStyle = d.c; cx.lineWidth = 4; cx.lineCap = cx.lineJoin = 'round';
+    cx.beginPath(); cx.moveTo(d.x0, d.y0); cx.lineTo(d.x1, d.y1); cx.stroke();
+  });
+  socket.on('guess:try', ({ from, text }) => { if (guessRole === 'draw') toast(`🧩 ${from} nebak: "${text}"`, 5000); });
+  socket.on('guess:correct', ({ from }) => {
+    heartRain(40); ding(); navigator.vibrate?.([300, 100, 300]);
+    toast(`🎉 Tebakan bener! ${guessRole === 'draw' ? 'Dia jago nebak' : 'Kamu jago nebak'}!`, 5000);
+    guessMode(null);
+  });
+  socket.on('guess:end', () => guessMode(null));
+  socket.on('pins:changed', () => { if (map) loadPins(); });
   socket.on('nobar:go', ({ from, at }) => {
     const el = document.createElement('div'); el.className = 'nobarOv';
     el.innerHTML = `<div class="nobx"><b>🎬 NOBAR BARENG!</b><span class="nbn">3</span><i>ajakan ${esc(from)} — tekan PLAY pas hitungan habis!</i></div>`;
@@ -597,8 +617,16 @@ function show(tab) {
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
-    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
+    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="top:60px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
     $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
+    $('#pinBtn').onclick = async () => {
+      if (!myLoc) return toast('Lokasimu belum ada — nyalakan GPS dulu');
+      const name = prompt('Nama tempat ini? (misal: first date kita 💕)');
+      if (!name?.trim()) return;
+      const r = await api('/pin', { method: 'POST', body: { name: name.trim(), lat: myLoc.lat, lng: myLoc.lng } });
+      toast(r.ok ? `📌 "${name.trim()}" disimpan di peta kalian!` : 'gagal simpan');
+      loadPins();
+    };
     initMap(); renderGeoCard(); return;
   }
   if (tab === 'miss') {
@@ -636,6 +664,18 @@ function show(tab) {
           <div id="tttBoard" class="tttboard" style="display:none"></div>
           <button id="tttBtn" class="mini ghost" style="width:100%">Ajak main</button>
         </div>
+        <div class="playbox" style="margin-top:8px">
+          <div class="pbt">🧩 Tebak doodle</div>
+          <div id="guessState" class="hsub" style="min-height:16px;text-align:center">gambar sesuatu — dia nebak!</div>
+          <div id="guessWrap" style="display:none">
+            <canvas id="guessCv" width="260" height="200"></canvas>
+            <div class="hqin" id="guessInRow" style="display:none"><input id="guessIn" placeholder="Tebakannya…" maxlength="40"><button id="guessGo" class="mini">Tebak</button></div>
+            <button id="guessWin" class="mini" style="width:100%;display:none">✅ Tebakan bener!</button>
+          </div>
+          <button id="guessBtn" class="mini ghost" style="width:100%">✏️ Mulai menggambar</button>
+        </div>
+        <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px">💘<span>Quiz "seberapa kenal"</span></button>
+        <div id="wkScore" class="hsub" style="text-align:center;min-height:14px"></div>
         <button id="nobar" class="sbtn" style="--c:#ff7fb0;width:100%;margin-top:8px">🎬<span>Nobar bareng — play serentak</span></button>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
@@ -671,6 +711,16 @@ function show(tab) {
     $('#focusBtn').onclick = () => { socket.emit('focus:start', { dur: 25 }); toast(`Ngajak ${pname()} fokus bareng ⏱️`); };
     $('#tttBtn').onclick = () => { if (!tttG?.done) { socket.emit('ttt:invite'); $('#tttState').textContent = `nunggu ${pname()} terima… ⏳`; } else socket.emit('ttt:again'); };
     if (tttG) renderTtt(tttG);
+    $('#guessBtn').onclick = () => { socket.emit('guess:start'); guessMode('draw'); };
+    $('#quizBtn').onclick = quizMenu;
+    // leaderboard mingguan
+    api('/scores/week').then(sc => {
+      const el = $('#wkScore'); if (!el || !sc) return;
+      const parts = [];
+      if (sc.suit) parts.push(`✊ ${sc.suit.me}–${sc.suit.them}`);
+      if (sc.ttt) parts.push(`⭕ ${sc.ttt.me}–${sc.ttt.them}`);
+      el.textContent = parts.length ? `🏅 minggu ini — ${parts.join(' · ')}${parts.some(p => +p.match(/(\d+)/)[1] < +p.match(/–(\d+)/)[1]) ? '' : ''}` : '';
+    }).catch(() => {});
     setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
@@ -864,6 +914,60 @@ function capsuleMenu() {
     else toast(r.error || 'gagal');
   };
   loadCapsules();
+}
+
+// ---------- QUIZ "SEBERAPA KENAL" ----------
+const simMatch = (a, b) => {
+  const wa = String(a).toLowerCase().split(/\W+/).filter(w => w.length >= 3);
+  const wb = new Set(String(b).toLowerCase().split(/\W+/).filter(w => w.length >= 3));
+  return wa.some(w => wb.has(w));
+};
+async function quizMenu() {
+  $('.settings')?.remove();
+  const d = await api('/quiz');
+  if (!d) return;
+  const el = document.createElement('div'); el.className = 'settings card';
+  const revealRows = (answers, guesses, aName, gName) => d.qs.map((q, i) => `
+    <div class="qrow"><div class="qq">${esc(q)}</div>
+    <div class="qa">${esc(answers[i])} <i>— ${esc(aName)}</i></div>
+    <div class="qa ${simMatch(answers[i], guesses[i]) ? 'hit' : 'miss'}">${simMatch(answers[i], guesses[i]) ? '✅' : '💭'} ${esc(guesses[i])} <i>— tebakan ${esc(gName)}</i></div></div>`).join('');
+  const guessForm = (idpfx) => d.qs.map((q, i) => `<div class="hsub" style="text-align:left;margin-top:6px">${esc(q)}</div><input id="${idpfx}${i}" maxlength="120" placeholder="tebakanmu…">`).join('');
+  let html = `<h3>💘 Seberapa kenal</h3>`;
+  // bagian tebak jawaban dia
+  if (d.theirs && !d.theirs.myGuesses) {
+    html += `<div class="ssect"><b>🔮 Tebak jawaban ${esc(d.theirs.by)}</b>${guessForm('qg')}<button id="qsend" class="mini" style="width:100%">Kirim tebakan</button></div>`;
+  } else if (d.theirs && d.theirs.myGuesses) {
+    const score = d.theirs.answers.filter((a, i) => simMatch(a, d.theirs.myGuesses[i])).length;
+    html += `<div class="ssect"><b>🔮 Tebakanmu vs jawaban ${esc(d.theirs.by)} — ${score}/3!</b>${revealRows(d.theirs.answers, d.theirs.myGuesses, d.theirs.by, 'kamu')}</div>`;
+  } else {
+    html += `<div class="ssect"><b>🔮 Tebak dia</b><div class="hsub">${esc(pname())} belum isi quiz hari ini — ingetin dia ya!</div></div>`;
+  }
+  // bagian quiz-mu
+  if (d.mine) {
+    html += d.mine.theirGuesses
+      ? `<div class="ssect"><b>📋 Tebakan ${esc(d.mine.theirName || 'dia')} vs jawabanmu</b>${revealRows(d.mine.answers, d.mine.theirGuesses, 'kamu', d.mine.theirName || 'dia')}</div>`
+      : `<div class="ssect"><b>📋 Quiz-mu</b><div class="hsub">jawabanmu tersimpan — nunggu ${esc(d.mine.theirName || 'dia')} nebak…</div></div>`;
+  } else {
+    html += `<div class="ssect"><b>✍️ Isi jawabanmu (tentang dirimu)</b>${guessForm('qm')}<button id="qmine" class="mini" style="width:100%">Simpan & tantang dia</button></div>`;
+  }
+  html += `<button id="qcls" class="ghost">Tutup</button>`;
+  el.innerHTML = html;
+  $('#view').appendChild(el);
+  el.querySelector('#qcls').onclick = () => el.remove();
+  el.querySelector('#qsend')?.addEventListener('click', async () => {
+    const guesses = [0, 1, 2].map(i => el.querySelector('#qg' + i).value.trim());
+    if (guesses.some(g => !g)) return toast('Isi semua tebakan dulu');
+    const r = await api('/quiz/guess', { method: 'POST', body: { guesses } });
+    if (r.ok) { el.remove(); quizMenu(); toast('Tebakan terkirim! Lihat jawaban aslinya 💘'); }
+    else toast(r.error || 'gagal');
+  });
+  el.querySelector('#qmine')?.addEventListener('click', async () => {
+    const answers = [0, 1, 2].map(i => el.querySelector('#qm' + i).value.trim());
+    if (answers.some(a => !a)) return toast('Isi semua jawaban dulu');
+    const r = await api('/quiz', { method: 'POST', body: { answers } });
+    if (r.ok) { el.remove(); quizMenu(); toast(`Quiz terkirim — ${pname()} dikasih notif buat nebak! 💘`); }
+    else toast(r.error || 'gagal');
+  });
 }
 
 // ---------- HOME / WIDGET DASHBOARD ----------
@@ -1109,6 +1213,49 @@ function renderTtt(g) {
   }
 }
 
+// ---------- TEBAK DOODLE ----------
+let guessRole = null;
+function guessMode(role) {
+  guessRole = role;
+  const wrap = $('#guessWrap'), cv = $('#guessCv'), st = $('#guessState'), btn = $('#guessBtn');
+  if (!wrap || !cv) return;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#101c33'; cx.fillRect(0, 0, cv.width, cv.height);
+  if (!role) {
+    wrap.style.display = 'none'; $('#guessInRow').style.display = 'none'; $('#guessWin').style.display = 'none';
+    btn.style.display = ''; btn.textContent = '✏️ Mulai menggambar';
+    st.textContent = 'gambar sesuatu — dia nebak!';
+    return;
+  }
+  wrap.style.display = '';
+  if (role === 'draw') {
+    st.textContent = `gambar sesuatu — ${pname()} nebak live!`;
+    $('#guessInRow').style.display = 'none'; $('#guessWin').style.display = '';
+    btn.style.display = 'none';
+    cx.strokeStyle = '#fff'; cx.lineWidth = 4; cx.lineCap = cx.lineJoin = 'round';
+    let drawing = false, lx = 0, ly = 0;
+    const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)]; };
+    cv.onpointerdown = e => { drawing = true; [lx, ly] = pos(e); cv.setPointerCapture(e.pointerId); };
+    cv.onpointermove = e => {
+      if (!drawing) return;
+      const [x, y] = pos(e);
+      cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
+      socket.emit('guess:stroke', { x0: lx, y0: ly, x1: x, y1: y, c: '#fff' });
+      [lx, ly] = [x, y];
+    };
+    cv.onpointerup = cv.onpointercancel = () => drawing = false;
+    $('#guessWin').onclick = () => socket.emit('guess:correct');
+  } else {
+    st.textContent = `${pname()} lagi gambar — tebak apa!`;
+    $('#guessInRow').style.display = ''; $('#guessWin').style.display = 'none';
+    btn.style.display = 'none';
+    cv.onpointerdown = cv.onpointermove = cv.onpointerup = null;
+    const send = () => { const t = $('#guessIn').value.trim(); if (t) { socket.emit('guess:try', { text: t }); $('#guessIn').value = ''; } };
+    $('#guessGo').onclick = send;
+    $('#guessIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+  }
+}
+
 // ---------- DOODLE ----------
 function setupDoodle() {
   const cv = $('#doodle'); if (!cv) return;
@@ -1136,12 +1283,24 @@ function setupDoodle() {
 }
 
 // ---------- PHONE MAP ----------
+let pinLayer = null;
+async function loadPins() {
+  if (!map) return;
+  const pins = await api('/pins'); if (!pins) return;
+  pinLayer?.remove(); pinLayer = null;
+  if (!pins.length) return;
+  pinLayer = L.layerGroup(pins.map(p =>
+    L.marker([p.lat, p.lng], { icon: mkIcon('#ff8fb1', '📌') })
+      .bindTooltip(`${esc(p.name)} · ${p.mine ? 'kamu' : esc(p.by_name)}`, { direction: 'top' })
+  )).addTo(map);
+}
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
   if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
   api('/partner/location').then(d => { if (d?.lat != null) { partnerLoc = d; lastSync = Date.now(); updatePartnerMarkers(d); if (d.trail?.length) { trailLine?.remove(); trailLine = L.polyline(d.trail.map(t => [t.lat, t.lng]), { color: '#5cc8ff', weight: 3, opacity: .5, dashArray: '6 8' }).addTo(map); } } });
+  loadPins();
 }
 
 // ---------- SCHEDULE ----------

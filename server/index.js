@@ -254,6 +254,78 @@ app.get('/api/weather', auth, async (req, res) => {
   res.json(out);
 });
 
+// --- tempat favorit ---
+app.get('/api/pins', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.pins(req.user.pair_id).map(p => ({ ...p, mine: p.user_id === req.user.id })));
+});
+app.post('/api/pin', auth, (req, res) => {
+  const { name, lat, lng } = req.body || {};
+  if (!req.user.pair_id || !name || lat == null || lng == null) return res.status(400).json({ error: 'invalid' });
+  store.addPin(req.user.pair_id, req.user.id, String(name).trim().slice(0, 60), +lat, +lng);
+  io.to(req.user.pair_id).emit('pins:changed');
+  res.json({ ok: true });
+});
+app.delete('/api/pin/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ ok: true });
+  store.delPin(req.user.pair_id, req.params.id, req.user.id);
+  io.to(req.user.pair_id).emit('pins:changed');
+  res.json({ ok: true });
+});
+
+// --- leaderboard mingguan ---
+app.get('/api/scores/week', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({});
+  const rows = store.scoreWeek(req.user.pair_id, Date.now() - 7 * 86400000);
+  const p = store.partnerOf(req.user);
+  const out = {};
+  for (const r of rows) {
+    out[r.game] = out[r.game] || { me: 0, them: 0, draw: 0 };
+    if (r.winner_id === 'draw') out[r.game].draw += r.n;
+    else if (r.winner_id === req.user.id) out[r.game].me += r.n;
+    else if (p && r.winner_id === p.id) out[r.game].them += r.n;
+  }
+  res.json(out);
+});
+
+// --- quiz "seberapa kenal" ---
+const QUIZ_QS = ['Makanan favorit aku?', 'Hal kecil yang bikin aku senyum?', 'Mimpi terbesar aku?'];
+app.get('/api/quiz', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ qs: QUIZ_QS });
+  const day = dayKey(), p = store.partnerOf(req.user);
+  const mine = store.quizGet(req.user.pair_id, day, req.user.id);
+  const theirs = p ? store.quizGet(req.user.pair_id, day, p.id) : null;
+  const myGuesses = theirs ? store.quizGuessGet(theirs.id, req.user.id) : null;
+  const theirGuesses = mine && p ? store.quizGuessGet(mine.id, p.id) : null;
+  res.json({
+    qs: QUIZ_QS,
+    mine: mine ? { answers: JSON.parse(mine.answers), theirGuesses: theirGuesses ? JSON.parse(theirGuesses.guesses) : null, theirName: p?.name } : null,
+    theirs: theirs ? { by: theirs.by_name, answers: myGuesses ? JSON.parse(theirs.answers) : null, myGuesses: myGuesses ? JSON.parse(myGuesses.guesses) : null } : null,
+  });
+});
+app.post('/api/quiz', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  const ans = (req.body?.answers || []).slice(0, 3).map(a => String(a).trim().slice(0, 120));
+  if (ans.length < 3 || ans.some(a => !a)) return res.status(400).json({ error: 'invalid' });
+  store.quizSet(req.user.pair_id, dayKey(), req.user.id, ans);
+  io.to(req.user.pair_id).emit('home:changed');
+  pushPartner(req.user, { title: '💘 Ryora Watch', body: `${req.user.name} isi quiz "seberapa kenal" — coba tebak jawabannya!`, tag: 'quiz' });
+  res.json({ ok: true });
+});
+app.post('/api/quiz/guess', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
+  const p = store.partnerOf(req.user);
+  const q = p && store.quizGet(req.user.pair_id, dayKey(), p.id);
+  if (!q) return res.status(400).json({ error: 'dia belum isi quiz hari ini' });
+  const gs = (req.body?.guesses || []).slice(0, 3).map(a => String(a).trim().slice(0, 120));
+  if (gs.length < 3 || gs.some(a => !a)) return res.status(400).json({ error: 'invalid' });
+  store.quizGuessSet(q.id, req.user.id, gs);
+  const answers = JSON.parse(q.answers);
+  io.to(req.user.pair_id).emit('home:changed');
+  pushPartner(req.user, { title: '💘 Ryora Watch', body: `${req.user.name} udah nebak quiz-mu — lihat hasilnya!`, tag: 'quiz' });
+  res.json({ ok: true, answers });
+});
+
 app.get('/api/suit/stats', auth, (req, res) => {
   if (!req.user.pair_id) return res.json({ me: 0, them: 0, draw: 0 });
   const partner = store.partnerOf(req.user);
@@ -783,7 +855,10 @@ io.on('connection', (socket) => {
     if (!mark || g.turn !== mark || cell < 0 || cell > 8 || g.board[cell]) return;
     g.board[cell] = mark;
     const w = tttWinner(g.board);
-    if (w || !g.board.includes('')) { g.done = true; g.winner = w || 'draw'; }
+    if (w || !g.board.includes('')) {
+      g.done = true; g.winner = w || 'draw';
+      store.suitAdd(u.pair_id, w ? (w === 'x' ? g.x : g.o) : 'draw', 'ttt');
+    }
     else g.turn = mark === 'x' ? 'o' : 'x';
     io.to(u.pair_id).emit('ttt:state', tttState(g));
   });
@@ -793,6 +868,19 @@ io.on('connection', (socket) => {
     g.board = Array(9).fill(''); g.turn = 'x'; delete g.done; delete g.winner;
     io.to(u.pair_id).emit('ttt:state', tttState(g));
   });
+
+  // --- tebak doodle — gambar live, dia nebak ---
+  socket.on('guess:start', () => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('g' + u.id) || 0) < 10000) return;
+    lastMiss.set('g' + u.id, now);
+    socket.to(u.pair_id).emit('guess:start', { from: u.name });
+  });
+  socket.on('guess:stroke', (d) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:stroke', d); });
+  socket.on('guess:try', ({ text }) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:try', { from: u.name, text: String(text).slice(0, 60) }); });
+  socket.on('guess:correct', () => { if (u.pair_id) io.to(u.pair_id).emit('guess:correct', { from: u.name }); });
+  socket.on('guess:end', () => { if (u.pair_id) io.to(u.pair_id).emit('guess:end'); });
 
   // --- fokus bareng — timer sinkron di dua HP ---
   socket.on('focus:start', ({ dur }) => {

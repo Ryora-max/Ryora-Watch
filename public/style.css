@@ -221,6 +221,15 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .tttc { aspect-ratio:1; border-radius:12px; border:1px solid var(--line); background:var(--card2); font-size:26px; cursor:pointer; }
 .tttc.x { background:#5cc8ff22; border-color:#5cc8ff66; }
 .tttc.o { background:#ff8fb122; border-color:#ff8fb166; }
+/* tebak doodle */
+#guessCv { width:100%; border-radius:12px; background:#101c33; touch-action:none; }
+/* quiz kenal */
+.qrow { margin-bottom:10px; padding:8px 10px; background:var(--card2); border-radius:10px; }
+.qq { font-size:12px; font-weight:700; color:var(--dim); margin-bottom:4px; }
+.qa { font-size:13px; }
+.qa i { font-style:normal; color:var(--dim); font-size:11px; }
+.qa.hit { color:var(--accent2); }
+.qa.miss { color:var(--dim); }
 /* overlay nobar */
 .nobarOv { position:fixed; inset:0; z-index:950; background:#050f1ecc; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
 .nobx { text-align:center; display:flex; flex-direction:column; gap:10px; padding:30px; }
