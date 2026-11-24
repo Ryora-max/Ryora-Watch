@@ -307,6 +307,9 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 [data-theme=lavender] body { background:radial-gradient(900px 600px at 50% -15%,#b79aff66,transparent),linear-gradient(180deg,#5a46a8 0%,#3a2c78 45%,#1c1447 100%); }
 [data-theme=forest] { --bg:#0f3527; --bg2:#174f3a; --card:rgba(255,255,255,.13); --line:rgba(160,240,200,.24); --accent:#6fe3b1; --accent2:#a8e6cf; --text:#f4fcf8; --dim:#c8ecdc; --grad:linear-gradient(135deg,#6fe3b1,#a8e6cf); }
 [data-theme=forest] body { background:radial-gradient(900px 600px at 50% -15%,#6fe3b155,transparent),linear-gradient(180deg,#1f6b4d 0%,#114736 45%,#082a20 100%); }
+[data-theme=dark] { --bg:#0b0b10; --bg2:#121218; --card:rgba(255,255,255,.09); --card2:rgba(255,255,255,.07); --line:rgba(255,255,255,.15); --accent:#8ab4ff; --accent2:#5adfc8; --text:#f5f7fb; --dim:#c6cede; --grad:linear-gradient(135deg,#8ab4ff,#5adfc8); }
+[data-theme=dark] body { background:linear-gradient(180deg,#17171f 0%,#0e0e14 55%,#07070a 100%); }
+[data-theme=dark] .msg.ai { background:var(--card2); }
 [data-theme=sakura] .code,[data-theme=lavender] .code,[data-theme=forest] .code { color:var(--accent); }
 
 /* --- theme swatches --- */

@@ -94,6 +94,8 @@ try { db.exec('ALTER TABLE pairs ADD COLUMN next_meet INTEGER'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN since INTEGER'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN song TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN bday TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN dnd_from INTEGER'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 
 const id = () => randomBytes(8).toString('hex');
@@ -114,11 +116,13 @@ export const store = {
   setAiName: (uid, name) => db.prepare('UPDATE users SET ai_name=? WHERE id=?').run(name, uid),
   setAiGender: (uid, g) => db.prepare('UPDATE users SET ai_gender=? WHERE id=?').run(g, uid),
   setStatus: (uid, s) => db.prepare('UPDATE users SET status=? WHERE id=?').run(s, uid),
-  setProfile: (uid, { name, avatar, pet_name, bday }) => {
+  setProfile: (uid, { name, avatar, pet_name, bday, dnd_from, dnd_to }) => {
     if (name != null) db.prepare('UPDATE users SET name=? WHERE id=?').run(String(name).trim().slice(0, 30), uid);
     if (avatar != null) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(String(avatar).slice(0, 8), uid);
     if (pet_name != null) db.prepare('UPDATE users SET pet_name=? WHERE id=?').run(String(pet_name).trim().slice(0, 30), uid);
     if (bday != null) db.prepare('UPDATE users SET bday=? WHERE id=?').run(String(bday).slice(0, 10), uid);
+    if (dnd_from !== undefined) db.prepare('UPDATE users SET dnd_from=? WHERE id=?').run(dnd_from === null ? null : +dnd_from, uid);
+    if (dnd_to !== undefined) db.prepare('UPDATE users SET dnd_to=? WHERE id=?').run(dnd_to === null ? null : +dnd_to, uid);
   },
   setNextMeet: (pairId, ts) => db.prepare('UPDATE pairs SET next_meet=? WHERE id=?').run(ts, pairId),
   setSince: (pairId, ts) => db.prepare('UPDATE pairs SET since=? WHERE id=?').run(ts, pairId),

@@ -265,6 +265,7 @@ function connectSocket() {
   });
   socket.on('location:update', (l) => { partnerLoc = l; lastSync = Date.now(); updatePartnerMarkers(l); trailLine?.addLatLng([l.lat, l.lng]); updateTogether(); });
   socket.on('miss:receive', ({ from, pattern }) => {
+    if (isQuiet()) { toast(`💓 ${from} kangen kamu — lagi jam tenang 🔕`, 3000); refreshMissStat(); return; }
     navigator.vibrate?.(Array(pattern).fill([250, 120]).flat());
     ding();
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from} kangen kamu 💓` }); } catch {}
@@ -294,11 +295,58 @@ function connectSocket() {
     loadVoices();
   });
   socket.on('care:receive', ({ from, kind }) => {
+    if (isQuiet()) { toast(`💓 ${from} mikirin kamu — lagi jam tenang 🔕`, 3000); return; }
     navigator.vibrate?.([200, 100, 200]);
     ding();
     const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from}: ${label}` }); } catch {}
     toast(`${from} — ${label}`, 4000);
+  });
+  // "lagi apa?" — dia minta foto live darimu
+  socket.on('photo:ask', ({ from }) => {
+    ding(); navigator.vibrate?.([200, 100, 200]);
+    const mp = document.createElement('div'); mp.className = 'moodprompt card';
+    mp.innerHTML = `<span>📸 ${esc(from)} mau lihat kamu lagi apa</span><button id="paGo" class="mini">📷 Kirim</button><button id="paNo" class="mini">✕</button>`;
+    document.body.appendChild(mp);
+    setTimeout(() => mp.remove(), 30000);
+    mp.querySelector('#paNo').onclick = () => mp.remove();
+    mp.querySelector('#paGo').onclick = () => {
+      mp.remove();
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'user';
+      inp.onchange = () => {
+        const f = inp.files[0]; if (!f) return;
+        const img = new Image();
+        img.onload = () => {
+          const s = Math.min(1, 640 / Math.max(img.width, img.height));
+          const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          const data = c.toDataURL('image/jpeg', .62);
+          api('/photo', { method: 'POST', body: { img: data, caption: '⚡ lagi apa' } }).then(r => toast(r.ok ? 'Foto terkirim 📸' : 'gagal kirim'));
+          URL.revokeObjectURL(img.src);
+        };
+        img.src = URL.createObjectURL(f);
+      };
+      inp.click();
+    };
+  });
+  // fokus bareng — timer sinkron dua HP
+  socket.on('focus:go', ({ from, at, dur }) => {
+    const el = document.createElement('div'); el.className = 'nobarOv';
+    el.innerHTML = `<div class="nobx"><b>📵 FOKUS BARENG</b><span class="nbn" id="focT"></span><i>mulai sama ${esc(from)} — hp diemin dulu ya</i><button class="mini ghost" id="focOut" style="width:auto;padding:8px 20px">keluar</button></div>`;
+    document.body.appendChild(el);
+    ding(); navigator.vibrate?.([300, 100, 300]);
+    const t = el.querySelector('#focT');
+    const end = at + dur;
+    const tick = setInterval(() => {
+      const now = Date.now();
+      if (now < at) { t.textContent = Math.ceil((at - now) / 1000); return; }
+      const left = Math.max(0, end - now);
+      const m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
+      t.textContent = `${m}:${String(s).padStart(2, '0')}`;
+      if (left <= 0) { clearInterval(tick); ding(); t.textContent = '🎉'; el.querySelector('i').textContent = 'selesai! balik ngobrol yuk'; setTimeout(() => el.remove(), 8000); }
+    }, 300);
+    el.querySelector('#focOut').onclick = () => { clearInterval(tick); el.remove(); };
   });
   socket.on('touch:partner', ({ on }) => {
     const el = $('#touchState'); if (el) el.textContent = on ? `${pname()} juga nyentuh… 👀` : '';
@@ -567,6 +615,7 @@ function show(tab) {
           </div>
         </div>
         <button id="nobar" class="sbtn" style="--c:#ff7fb0;width:100%;margin-top:8px">🎬<span>Nobar bareng — play serentak</span></button>
+        <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
       <div class="msect"><b>Kirim sesuatu</b>
         <div class="sendgrid">
@@ -597,6 +646,7 @@ function show(tab) {
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
     $('#nobar').onclick = () => { socket.emit('nobar:start'); toast(`Ngajak ${pname()} nobar… 🎬`); };
+    $('#focusBtn').onclick = () => { socket.emit('focus:start', { dur: 25 }); toast(`Ngajak ${pname()} fokus bareng ⏱️`); };
     setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
@@ -613,9 +663,9 @@ function show(tab) {
     v.innerHTML = `<div class="list">
       <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
       <div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div>
-      <div class="addrow"><select id="srep"><option value="">🔁 sekali</option><option value="daily">🔁 tiap hari</option><option value="weekly">🔁 tiap minggu</option></select>
-        <span class="hsub" style="margin-left:auto">ajak:</span>
-        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button></div>
+      <div class="addrow"><span class="hsub" style="flex-shrink:0">ulang:</span><select id="srep"><option value="">sekali saja</option><option value="daily">🔁 tiap hari</option><option value="weekly">🔁 tiap minggu</option></select></div>
+      <div class="addrow"><span class="hsub">⚡ ajak:</span>
+        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button><span style="flex:1"></span></div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
@@ -696,7 +746,7 @@ function renderKita(v) {
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
     <div class="msect"><b>🎨 Tema</b>
-      <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
+      <div class="themrow">${[['', '🌊', 'Langit'], ['dark', '🌙', 'Gelap'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
     <div class="msect"><b>📦 Lainnya</b>
       <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
@@ -824,6 +874,7 @@ async function renderHome(v) {
         : next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 10))}</div>`
         : `<div class="hchip" id="hNext">🎂 ${nextMonthsary().days} hari → monthsary</div>`}
       ${bdayChip}
+      <div class="hchip" id="hAsk">📸 lagi apa?</div>
       <div class="hchip" id="hWrap2">📊 rekap</div>
       <div class="hchip" id="hWx">🌦️…</div>
     </div>
@@ -860,6 +911,7 @@ async function renderHome(v) {
     </div>` : ''}
   </div>`;
   $('#hWrap2') && ($('#hWrap2').onclick = () => wrappedModal());
+  $('#hAsk').onclick = () => { socket.emit('photo:request'); toast(`Nanya ${pname()} lagi apa 📸…`); };
   api('/weather').then(w => {
     const el2 = $('#hWx'); if (!el2 || !w) return;
     const wd = (x) => x ? (x.code >= 60 ? '🌧️' : x.code >= 50 ? '🌦️' : x.code >= 3 ? '☁️' : x.code ? '⛅' : '☀️') + x.t + '°' : null;
@@ -980,6 +1032,12 @@ function photoViewer(src) {
 const aiName = () => me?.user?.ai_name || 'AI';
 const pname = () => me?.user?.pet_name || me?.partner?.name || '—'; // panggilan sayang
 const av = (u) => u?.avatar || (u?.name || '?')[0].toUpperCase();
+const isQuiet = () => { // jam tenang — ping & getar ditahan
+  const f = me?.user?.dnd_from, t = me?.user?.dnd_to;
+  if (f == null || t == null) return false;
+  const h = new Date().getHours();
+  return f <= t ? (h >= f && h < t) : (h >= f || h < t);
+};
 const bdayIn = (b) => { // hari menuju ultah (0 = hari ini), null kalau nggak diisi
   if (!b) return null;
   const n = new Date(), parts = String(b).slice(0, 10).split('-').map(Number);
@@ -1485,6 +1543,13 @@ function settings() {
       <div class="hsub" style="margin-top:-6px">↑ tanggal lahirmu — dia bakal diingetin pas ultahmu deket</div>
       <div class="muted" style="text-align:left;font-size:12px">Mood kamu:</div>
       <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
+      <div class="hsub" style="margin-top:4px">🔕 jam tenang — kangen & ping ditahan (misal 23 → 7):</div>
+      <div class="hqin">
+        <select id="dndF" style="flex:1"><option value="" ${me.user.dnd_from == null ? 'selected' : ''}>— dari</option>${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${me.user.dnd_from === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select>
+        <span style="align-self:center">→</span>
+        <select id="dndT" style="flex:1"><option value="" ${me.user.dnd_to == null ? 'selected' : ''}>— sampai</option>${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${me.user.dnd_to === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select>
+        <button id="dndBtn" class="mini">🔕</button>
+      </div>
     </div>
     <div class="ssect"><b>✦ Bestie AI</b>
       <button id="aipSet" class="ghost">✦ Profil bestie (${esc(me.user.ai_name || 'belum dinamai')})</button>
@@ -1520,6 +1585,12 @@ function settings() {
     me.user.name = t;
     await api('/profile', { method: 'POST', body: { name: t } });
     toast('Nama disimpan ✨');
+  };
+  el.querySelector('#dndBtn').onclick = async () => {
+    const f = el.querySelector('#dndF').value, t = el.querySelector('#dndT').value;
+    me.user.dnd_from = f === '' ? null : +f; me.user.dnd_to = t === '' ? null : +t;
+    await api('/profile', { method: 'POST', body: { dnd_from: me.user.dnd_from, dnd_to: me.user.dnd_to } });
+    toast(me.user.dnd_from == null ? 'Jam tenang dimatikan' : `🔕 Jam tenang: ${String(me.user.dnd_from).padStart(2, '0')}:00 → ${String(me.user.dnd_to).padStart(2, '0')}:00`);
   };
   el.querySelector('#bdayBtn').onclick = async () => {
     const dv = el.querySelector('#bdayIn').value; if (!dv) return;

@@ -80,7 +80,7 @@ app.post('/api/pair/break', auth, (req, res) => {
 app.get('/api/me', auth, (req, res) => {
   const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
   const pair = req.user.pair_id ? store.pairOf(req.user.id) : null;
-  res.json({ user: { id: req.user.id, name: req.user.name, avatar: req.user.avatar, pet_name: req.user.pet_name, bday: req.user.bday, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
+  res.json({ user: { id: req.user.id, name: req.user.name, avatar: req.user.avatar, pet_name: req.user.pet_name, bday: req.user.bday, dnd_from: req.user.dnd_from, dnd_to: req.user.dnd_to, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
 });
 
 app.post('/api/ai/toggle', auth, (req, res) => {
@@ -368,9 +368,9 @@ app.post('/api/restore', (req, res) => {
 });
 
 app.post('/api/profile', auth, (req, res) => {
-  const { name, avatar, pet_name, bday } = req.body || {};
+  const { name, avatar, pet_name, bday, dnd_from, dnd_to } = req.body || {};
   if (name != null && !String(name).trim()) return res.status(400).json({ error: 'nama kosong' });
-  store.setProfile(req.user.id, { name, avatar, pet_name, bday });
+  store.setProfile(req.user.id, { name, avatar, pet_name, bday, dnd_from, dnd_to });
   if (req.user.pair_id) io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
 });
@@ -736,6 +736,27 @@ io.on('connection', (socket) => {
     lastMiss.set('n' + u.id, now);
     io.to(u.pair_id).emit('nobar:go', { from: u.name, at: now + 4000 });
     pushPartner(u, { title: '🎬 Ryora Watch', body: `${u.name} ngajak nobar — gas!`, tag: 'nobar' });
+  });
+
+  // --- "lagi apa?" — minta foto live dari pasangan ---
+  socket.on('photo:request', () => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('pr' + u.id) || 0) < 20000) return;
+    lastMiss.set('pr' + u.id, now);
+    socket.to(u.pair_id).emit('photo:ask', { from: u.name });
+    pushPartner(u, { title: '📸 Ryora Watch', body: `${u.name} mau lihat kamu lagi apa — kirim foto!`, tag: 'photoask' });
+  });
+
+  // --- fokus bareng — timer sinkron di dua HP ---
+  socket.on('focus:start', ({ dur }) => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('f' + u.id) || 0) < 30000) return;
+    lastMiss.set('f' + u.id, now);
+    const mins = [15, 25, 45, 60].includes(+dur) ? +dur : 25;
+    io.to(u.pair_id).emit('focus:go', { from: u.name, at: now + 3000, dur: mins * 60000 });
+    pushPartner(u, { title: '⏱️ Ryora Watch', body: `${u.name} ngajak fokus bareng ${mins} menit!`, tag: 'focus' });
   });
 
   socket.on('disconnect', () => {

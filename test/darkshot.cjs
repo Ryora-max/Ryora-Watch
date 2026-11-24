@@ -1,0 +1,22 @@
+const puppeteer = require('puppeteer');
+(async () => {
+  const B = 'http://localhost:3000';
+  const ua = await fetch(B + '/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Dk' + Date.now() % 999 }) }).then(r => r.json());
+  const ub = await fetch(B + '/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'DkB' + Date.now() % 999 }) }).then(r => r.json());
+  const pc = await fetch(B + '/api/pair/create', { method: 'POST', headers: { 'x-token': ua.token, 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json());
+  await fetch(B + '/api/pair/join', { method: 'POST', headers: { 'x-token': ub.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: pc.code }) });
+  const browser = await puppeteer.launch({ headless: 'new', userDataDir: require('os').tmpdir() + '/ppd' + Date.now() });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, isMobile: true });
+  const errs = [];
+  page.on('pageerror', e => errs.push(e.message));
+  await page.evaluateOnNewDocument((t) => { localStorage.cw_setup_done = '1'; localStorage.cw_token = t; localStorage.cw_toured = '1'; localStorage.cw_theme = 'dark'; }, ua.token);
+  await page.goto(B, { waitUntil: 'domcontentloaded' });
+  await new Promise(r => setTimeout(r, 4500));
+  await page.screenshot({ path: 'test/shot_dark.png' });
+  await page.evaluate(() => { delete localStorage.cw_theme; document.documentElement.dataset.theme = ''; document.querySelector('[data-t="sched"]')?.click(); });
+  await new Promise(r => setTimeout(r, 1500));
+  await page.screenshot({ path: 'test/shot_sched2.png' });
+  console.log('ERRORS:', errs.length ? errs.slice(0, 5) : 'none');
+  await browser.close();
+})().catch(e => { console.log('FATAL', e.message); process.exit(1); });
