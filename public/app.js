@@ -168,6 +168,7 @@ async function mainUI() {
     <button data-t="sched">📅<span>Jadwal</span></button>
     <button data-t="miss">💓<span>Kangen</span></button>
     <button data-t="ai">✦<span>AI</span></button>
+    <button data-t="kita">✨<span>Kita</span></button>
   </nav>`;
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); b.classList.add('on'); show(b.dataset.t); });
   $('#gear').onclick = settings;
@@ -497,6 +498,7 @@ function show(tab) {
           <button id="vrec" class="sbtn" style="--c:#ff8fb1">🎙️<span>Voice — tahan rekam</span></button>
           <button id="doodBtn" class="sbtn" style="--c:#5cc8ff">🎨<span>Doodle</span></button>
           <button id="lwrite" class="sbtn" style="--c:#ffd166">✍️<span>Surat</span></button>
+          <button id="capBtn2" class="sbtn" style="--c:#c58bff">🎁<span>Kado</span></button>
         </div>
         <div class="muted" id="vstate" style="margin-top:8px;min-height:16px"></div>
         <div id="doodWrap" style="display:none;margin-top:10px">
@@ -520,6 +522,7 @@ function show(tab) {
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
     setupDoodle();
+    $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
     loadLetters();
     $$('.suit').forEach(b => b.onclick = () => {
@@ -585,6 +588,100 @@ function show(tab) {
     };
     return setupMic('#micBtn', '#cin');
   }
+  if (tab === 'kita') return renderKita(v);
+}
+
+// ---------- TAB KITA — hubungan & utilitas ----------
+function renderKita(v) {
+  v.innerHTML = `<div class="list">
+    <div class="msect"><b>💕 Kalian</b>
+      <div class="srow"><span>💕 Bareng</span><b>hari ke-${daysTogether()}</b></div>
+      <div class="srow"><span>📅 Sejak</span><b>${new Date(sinceTs()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>
+      <div class="srow"><span>🎂 Monthsary</span><b>${nextMonthsary().months} bulan · -${nextMonthsary().days} hari</b></div>
+      <div class="hqin"><input id="petIn" placeholder="Panggilan sayang buat dia" maxlength="30" value="${esc(me.user.pet_name || '')}"><button id="petBtn" class="mini">💗</button></div>
+      <div class="hqin"><input id="meetIn" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">✈️</button></div>
+      <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
+    </div>
+    <div class="msect"><b>🎨 Tema</b>
+      <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
+    </div>
+    <div class="msect"><b>📦 Lainnya</b>
+      <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
+      <button id="wrapYr" class="ghost">🗓️ Rekap ${new Date().getFullYear()}</button>
+      <button id="exportBtn" class="ghost">⬇️ Export semua data</button>
+      <button id="tourBtn" class="ghost">🧭 Tour aplikasi</button>
+      ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
+      ${!deferredInstall && /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone ? '<button id="iosInstall" class="ghost">📲 Cara install di iPhone</button>' : ''}
+      <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
+    </div>
+  </div>`;
+  const q = (s) => v.querySelector(s);
+  q('#petBtn').onclick = async () => {
+    const t = q('#petIn').value.trim();
+    me.user.pet_name = t;
+    await api('/profile', { method: 'POST', body: { pet_name: t } });
+    const hn = $('.whoinfo .pname'); if (hn) hn.childNodes[0].textContent = pname() + (me.partner.mood ? ' ' + me.partner.mood : '') + ' ';
+    toast(t ? `Dia jadi "${t}" 💗` : 'Panggilan dihapus');
+  };
+  q('#meetBtn').onclick = async () => {
+    const dv = q('#meetIn').value; if (!dv) return toast('Pilih tanggal dulu');
+    const ts = new Date(dv + 'T12:00:00').getTime();
+    await api('/meet', { method: 'POST', body: { ts } });
+    me.pair.next_meet = ts; toast('Tanggal ketemu disimpan ✈️');
+  };
+  q('#songBtn').onclick = async () => {
+    const t = q('#songIn').value.trim();
+    await api('/song', { method: 'POST', body: { text: t } });
+    me.pair.song = t; toast(t ? `🎵 "${t}" — lagu kalian!` : 'Lagu dihapus');
+  };
+  q('.themrow') && v.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
+    document.documentElement.dataset.theme = b.dataset.t;
+    localStorage.cw_theme = b.dataset.t;
+    v.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
+  });
+  q('#wrapBtn').onclick = () => wrappedModal();
+  q('#wrapYr').onclick = () => wrappedModal('year');
+  q('#exportBtn').onclick = async () => {
+    const r = await fetch('/api/export', { headers: { 'x-token': localStorage.cw_token } });
+    if (!r.ok) return toast('gagal export');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'ryora-export.json'; a.click();
+    URL.revokeObjectURL(a.href); toast('Data di-export ⬇️');
+  };
+  q('#tourBtn').onclick = () => { delete localStorage.cw_toured; tour(); };
+  const ins = q('#install');
+  if (ins) ins.onclick = async () => { deferredInstall?.prompt(); deferredInstall = null; ins.remove(); };
+  const ios = q('#iosInstall');
+  if (ios) ios.onclick = () => toast('Di Safari: tap Share (kotak panah ke atas) → "Add to Home Screen"', 7000);
+  q('#brk').onclick = async () => {
+    if (confirm('Yakin putus pair? Semua data jadwal & kangen dihapus.')) { await api('/pair/break', { method: 'POST' }); location.reload(); }
+  };
+}
+
+// ---------- KADO KEJUTAN (dari tombol 🎁 di Kangen) ----------
+function capsuleMenu() {
+  if ($('.settings')) return;
+  const el = document.createElement('div'); el.className = 'settings card';
+  el.innerHTML = `<h3>🎁 Kado kejutan</h3>
+    <div class="muted" style="font-size:12px">tulis pesan rahasia — dia baru bisa baca di tanggal pilihanmu 🔒</div>
+    <textarea id="capIn" placeholder="Pesan buat dia nanti…" maxlength="1000" rows="3"></textarea>
+    <div class="hqin"><input id="capDate" type="datetime-local" min="${new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 3600000).toISOString().slice(0, 16)}"><button id="capBtn" class="mini">🎁</button></div>
+    <div id="capList"></div>
+    <button id="ccls" class="ghost">Tutup</button>`;
+  $('#view').appendChild(el);
+  el.querySelector('#ccls').onclick = () => el.remove();
+  el.querySelector('#capBtn').onclick = async () => {
+    const t = el.querySelector('#capIn').value.trim(), dv = el.querySelector('#capDate').value;
+    if (!t) return toast('Tulis pesannya dulu');
+    if (!dv) return toast('Pilih tanggal bukanya');
+    const ts = new Date(dv).getTime();
+    if (ts <= Date.now()) return toast('Tanggal harus di masa depan');
+    const r = await api('/capsule', { method: 'POST', body: { text: t, unlock_ts: ts } });
+    if (r.ok) { el.querySelector('#capIn').value = ''; toast(`🎁 Kado terkunci sampai ${new Date(ts).toLocaleDateString('id-ID')} 🔒`); loadCapsules(); }
+    else toast(r.error || 'gagal');
+  };
+  loadCapsules();
 }
 
 // ---------- HOME / WIDGET DASHBOARD ----------
@@ -1230,8 +1327,8 @@ const AVATARS = ['😺','🐰','🦊','🐻','🐼','🐨','🦋','🌸','🌙',
 function settings() {
   if ($('.settings')) return;
   const el = document.createElement('div'); el.className = 'settings card';
-  el.innerHTML = `<h3>⚙️ Menu</h3>
-    <div class="ssect"><b>👤 Kamu</b>
+  el.innerHTML = `<h3>⚙️ Pengaturan</h3>
+    <div class="ssect"><b>👤 Profil kamu</b>
       <div class="avrow">
         <span class="avatar big" id="myAv">${esc(av(me.user))}</span>
         <div class="avgrid">${AVATARS.map(a => `<button class="avpick ${me.user.avatar === a ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div>
@@ -1241,37 +1338,12 @@ function settings() {
       <div class="muted" style="text-align:left;font-size:12px">Mood kamu:</div>
       <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
     </div>
-    <div class="ssect"><b>💕 Kalian</b>
-      <div class="srow"><span>💕 Bareng</span><b>hari ke-${daysTogether()}</b></div>
-      <div class="srow"><span>📅 Sejak</span><b>${new Date(sinceTs()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>
-      <div class="srow"><span>🎂 Monthsary</span><b>${nextMonthsary().months} bulan · -${nextMonthsary().days} hari</b></div>
-      <div class="hqin"><input id="petIn" placeholder="Panggilan sayang buat dia" maxlength="30" value="${esc(me.user.pet_name || '')}"><button id="petBtn" class="mini">💗</button></div>
-      <div class="muted" style="font-size:11px">↑ nama dia tampil sebagai panggilan ini di app-mu</div>
-      <div class="hqin"><input id="sinceIn" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${new Date(sinceTs()).toISOString().slice(0, 10)}"><button id="sinceBtn" class="mini">💕</button></div>
-      <div class="muted" style="font-size:11px">↑ tanggal jadian — dasar hitungan hari & monthsary</div>
-      <div class="hqin"><input id="meetIn" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">✈️</button></div>
-      <div class="muted" style="font-size:11px">↑ tanggal ketemu berikutnya — countdown di Home</div>
-      <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita — judul lagu kalian" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
-    </div>
-    <div class="ssect"><b>🎁 Kado kejutan</b>
-      <div class="muted" style="font-size:12px">tulis pesan rahasia — dia baru bisa baca di tanggal pilihanmu 🔒</div>
-      <textarea id="capIn" placeholder="Pesan buat dia nanti…" maxlength="1000" rows="3"></textarea>
-      <div class="hqin"><input id="capDate" type="datetime-local" min="${new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 3600000).toISOString().slice(0, 16)}"><button id="capBtn" class="mini">🎁</button></div>
-      <div id="capList"></div>
-    </div>
-    <div class="ssect"><b>✦ Bestie & tema</b>
+    <div class="ssect"><b>✦ Bestie AI</b>
       <button id="aipSet" class="ghost">✦ Profil bestie (${esc(me.user.ai_name || 'belum dinamai')})</button>
-      <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
-    <div class="ssect"><b>📦 Lainnya</b>
-      <button id="hist" class="ghost">💓 Riwayat kangen</button>
-      <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
-      <button id="wrapYr" class="ghost">🗓️ Rekap ${new Date().getFullYear()}</button>
-      <button id="exportBtn" class="ghost">⬇️ Export semua data</button>
-      <button id="tourBtn" class="ghost">🧭 Tour aplikasi</button>
-      ${deferredInstall ? '<button id="install" class="ghost">📲 Install aplikasi</button>' : ''}
-      ${!deferredInstall && /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone ? '<button id="iosInstall" class="ghost">📲 Cara install di iPhone</button>' : ''}
-      <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
+    <div class="ssect"><b>💕 Tanggal jadian</b>
+      <div class="muted" style="font-size:11px">dasar hitungan "hari ke-N" & monthsary</div>
+      <div class="hqin"><input id="sinceIn" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${new Date(sinceTs()).toISOString().slice(0, 10)}"><button id="sinceBtn" class="mini">💕 Simpan</button></div>
     </div>
     <button id="cls" class="ghost">Tutup</button>`;
   $('#view').appendChild(el);
@@ -1281,21 +1353,6 @@ function settings() {
     el.querySelectorAll('.mood').forEach(x => x.classList.toggle('on', x === b));
     await api('/mood', { method: 'POST', body: { mood: b.dataset.m } });
     toast(`Mood kamu: ${b.dataset.m}`);
-  });
-  el.querySelector('#wrapBtn').onclick = () => { el.remove(); wrappedModal(); };
-  el.querySelector('#wrapYr').onclick = () => { el.remove(); wrappedModal('year'); };
-  el.querySelector('#exportBtn').onclick = async () => {
-    const r = await fetch('/api/export', { headers: { 'x-token': localStorage.cw_token } });
-    if (!r.ok) return toast('gagal export');
-    const blob = await r.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'ryora-export.json'; a.click();
-    URL.revokeObjectURL(a.href); toast('Data di-export ⬇️');
-  };
-  el.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
-    document.documentElement.dataset.theme = b.dataset.t;
-    localStorage.cw_theme = b.dataset.t;
-    el.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
   });
   el.querySelector('#statusBtn').onclick = async () => {
     const t = el.querySelector('#statusIn').value.trim();
@@ -1316,13 +1373,6 @@ function settings() {
     await api('/profile', { method: 'POST', body: { name: t } });
     toast('Nama disimpan ✨');
   };
-  el.querySelector('#petBtn').onclick = async () => {
-    const t = el.querySelector('#petIn').value.trim();
-    me.user.pet_name = t;
-    await api('/profile', { method: 'POST', body: { pet_name: t } });
-    const hn = $('.whoinfo .pname'); if (hn) hn.childNodes[0].textContent = pname() + (me.partner.mood ? ' ' + me.partner.mood : '') + ' ';
-    toast(t ? `Dia jadi "${t}" 💗` : 'Panggilan dihapus');
-  };
   el.querySelector('#sinceBtn').onclick = async () => {
     const dv = el.querySelector('#sinceIn').value; if (!dv) return;
     const ts = new Date(dv + 'T12:00:00').getTime();
@@ -1331,38 +1381,7 @@ function settings() {
     if (r.ok) { me.pair.since = ts; $('#daystat').textContent = `💕 hari ke-${daysTogether()}`; toast(`Jadian: ${new Date(ts).toLocaleDateString('id-ID')} — hari ke-${daysTogether()} 💕`); }
     else toast(r.error || 'gagal');
   };
-  el.querySelector('#songBtn').onclick = async () => {
-    const t = el.querySelector('#songIn').value.trim();
-    await api('/song', { method: 'POST', body: { text: t } });
-    me.pair.song = t; toast(t ? `🎵 "${t}" — lagu kalian!` : 'Lagu dihapus');
-  };
-  el.querySelector('#capBtn').onclick = async () => {
-    const t = el.querySelector('#capIn').value.trim(), dv = el.querySelector('#capDate').value;
-    if (!t) return toast('Tulis pesannya dulu');
-    if (!dv) return toast('Pilih tanggal bukanya');
-    const ts = new Date(dv).getTime();
-    if (ts <= Date.now()) return toast('Tanggal harus di masa depan');
-    const r = await api('/capsule', { method: 'POST', body: { text: t, unlock_ts: ts } });
-    if (r.ok) { el.querySelector('#capIn').value = ''; toast(`🎁 Kado terkunci sampai ${new Date(ts).toLocaleDateString('id-ID')} 🔒`); loadCapsules(); }
-    else toast(r.error || 'gagal');
-  };
-  loadCapsules();
-  el.querySelector('#hist').onclick = missHistory;
   el.querySelector('#aipSet').onclick = () => { el.remove(); aiProfile(); };
-  const ins = el.querySelector('#install');
-  if (ins) ins.onclick = async () => { deferredInstall?.prompt(); deferredInstall = null; ins.remove(); };
-  const ios = el.querySelector('#iosInstall');
-  if (ios) ios.onclick = () => toast('Di Safari: tap Share (kotak panah ke atas) → "Add to Home Screen"', 7000);
-  el.querySelector('#meetBtn').onclick = async () => {
-    const dv = el.querySelector('#meetIn').value; if (!dv) return toast('Pilih tanggal dulu');
-    const ts = new Date(dv + 'T12:00:00').getTime();
-    await api('/meet', { method: 'POST', body: { ts } });
-    me.pair.next_meet = ts; toast('Tanggal ketemu disimpan ✈️');
-  };
-  el.querySelector('#tourBtn').onclick = () => { el.remove(); delete localStorage.cw_toured; tour(); };
-  el.querySelector('#brk').onclick = async () => {
-    if (confirm('Yakin putus pair? Semua data jadwal & kangen dihapus.')) { await api('/pair/break', { method: 'POST' }); location.reload(); }
-  };
 }
 
 async function missHistory() {
