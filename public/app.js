@@ -1072,7 +1072,16 @@ function renderCal() {
   const el = $('#scal'); if (!el) return;
   const y = calDate.getFullYear(), m = calDate.getMonth();
   const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-  const withSched = new Set(schedCache.filter(s => { const d = new Date(s.start_time); return d.getFullYear() === y && d.getMonth() === m; }).map(s => new Date(s.start_time).getDate()));
+  const withSched = new Set(schedCache.flatMap(s => {
+    if (s.repeat === 'daily') return Array.from({ length: days }, (_, i) => i + 1);
+    const d = new Date(nextOcc(s));
+    if (s.repeat === 'weekly') { // tandai semua hari yang sama dalam bulan ini
+      const out = [];
+      for (let i = 1; i <= days; i++) if (new Date(y, m, i).getDay() === d.getDay()) out.push(i);
+      return out;
+    }
+    return d.getFullYear() === y && d.getMonth() === m ? [d.getDate()] : [];
+  }));
   let html = `<div class="calhead"><button id="calPrev" class="mini ghost">‹</button><b>${calDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b><button id="calNext" class="mini ghost">›</button></div><div class="calgrid">`;
   for (const d of ['Mi','Se','Se','Ra','Ka','Ju','Sa']) html += `<div class="calwd">${d}</div>`;
   for (let i = 0; i < first; i++) html += '<div></div>';
