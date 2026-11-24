@@ -613,9 +613,9 @@ function show(tab) {
     v.innerHTML = `<div class="list">
       <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
       <div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div>
-      <div class="addrow"><label class="hsub">🔁</label><select id="srep"><option value="">sekali saja</option><option value="daily">tiap hari</option><option value="weekly">tiap minggu</option></select>
-        <span class="hsub" style="margin-left:auto">atau ajak quality time:</span>
-        <button class="qt" data-q="☕ Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk">🍽️</button></div>
+      <div class="addrow"><select id="srep"><option value="">🔁 sekali</option><option value="daily">🔁 tiap hari</option><option value="weekly">🔁 tiap minggu</option></select>
+        <span class="hsub" style="margin-left:auto">ajak:</span>
+        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button></div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
@@ -687,9 +687,12 @@ function renderKita(v) {
     <div class="msect"><b>💕 Kalian</b>
       <div class="srow"><span>💕 Bareng</span><b>hari ke-${daysTogether()}</b></div>
       <div class="srow"><span>📅 Sejak</span><b>${new Date(sinceTs()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>
-      <div class="srow"><span>🎂 Monthsary</span><b>${nextMonthsary().months} bulan · -${nextMonthsary().days} hari</b></div>
+      <div class="srow"><span>🎂 Monthsary</span><b>${nextMonthsary().months} bulan · ${nextMonthsary().days} hari lagi</b></div>
+      <div class="hsub" style="margin-top:2px">panggilan sayang buat dia:</div>
       <div class="hqin"><input id="petIn" placeholder="Panggilan sayang buat dia" maxlength="30" value="${esc(me.user.pet_name || '')}"><button id="petBtn" class="mini">💗</button></div>
+      <div class="hsub" style="margin-top:2px">tanggal ketemu berikutnya:</div>
       <div class="hqin"><input id="meetIn" type="date" min="${new Date().toISOString().slice(0, 10)}" value="${me.pair.next_meet ? new Date(me.pair.next_meet).toISOString().slice(0, 10) : ''}"><button id="meetBtn" class="mini">✈️</button></div>
+      <div class="hsub" style="margin-top:2px">lagu kalian:</div>
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
     <div class="msect"><b>🎨 Tema</b>
@@ -819,7 +822,7 @@ async function renderHome(v) {
       <div class="hchip">🔥 ${d.streak || 0} hari</div>
       ${me.pair.next_meet ? `<div class="hchip" id="hNext">✈️ ${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? dd + ' hari lagi' : 'ketemu hari ini!'; })()}</div>`
         : next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 10))}</div>`
-        : `<div class="hchip" id="hNext">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>`}
+        : `<div class="hchip" id="hNext">🎂 ${nextMonthsary().days} hari → monthsary</div>`}
       ${bdayChip}
       <div class="hchip" id="hWrap2">📊 rekap</div>
       <div class="hchip" id="hWx">🌦️…</div>

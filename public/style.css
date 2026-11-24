@@ -212,9 +212,9 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
 .bakbox { margin:8px 0; padding:10px; background:#ffffff0a; border-radius:10px; }
 .bakcode { font-family:monospace; font-size:10px; word-break:break-all; color:var(--dim); margin:6px 0; max-height:60px; overflow:auto; }
 /* baris repeat + quality time di form jadwal */
-.addrow { display:flex; align-items:center; gap:8px; margin-top:8px; }
-.addrow select { background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:7px 10px; font-size:12px; }
-.qt { width:34px; height:34px; border-radius:10px; border:1px solid var(--line); background:var(--card2); font-size:16px; cursor:pointer; }
+.addrow { display:flex; align-items:center; gap:6px; margin-top:8px; }
+.addrow select { background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:8px 10px; font-size:12px; min-width:0; }
+.qt { width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background:var(--card2); font-size:17px; cursor:pointer; flex-shrink:0; }
 /* overlay nobar */
 .nobarOv { position:fixed; inset:0; z-index:950; background:#050f1ecc; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
 .nobx { text-align:center; display:flex; flex-direction:column; gap:10px; padding:30px; }
