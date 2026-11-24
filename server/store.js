@@ -93,6 +93,8 @@ try { db.exec('ALTER TABLE users ADD COLUMN pet_name TEXT'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN next_meet INTEGER'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN since INTEGER'); } catch {}
 try { db.exec('ALTER TABLE pairs ADD COLUMN song TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN bday TEXT'); } catch {}
+try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 
 const id = () => randomBytes(8).toString('hex');
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -112,10 +114,11 @@ export const store = {
   setAiName: (uid, name) => db.prepare('UPDATE users SET ai_name=? WHERE id=?').run(name, uid),
   setAiGender: (uid, g) => db.prepare('UPDATE users SET ai_gender=? WHERE id=?').run(g, uid),
   setStatus: (uid, s) => db.prepare('UPDATE users SET status=? WHERE id=?').run(s, uid),
-  setProfile: (uid, { name, avatar, pet_name }) => {
+  setProfile: (uid, { name, avatar, pet_name, bday }) => {
     if (name != null) db.prepare('UPDATE users SET name=? WHERE id=?').run(String(name).trim().slice(0, 30), uid);
     if (avatar != null) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(String(avatar).slice(0, 8), uid);
     if (pet_name != null) db.prepare('UPDATE users SET pet_name=? WHERE id=?').run(String(pet_name).trim().slice(0, 30), uid);
+    if (bday != null) db.prepare('UPDATE users SET bday=? WHERE id=?').run(String(bday).slice(0, 10), uid);
   },
   setNextMeet: (pairId, ts) => db.prepare('UPDATE pairs SET next_meet=? WHERE id=?').run(ts, pairId),
   setSince: (pairId, ts) => db.prepare('UPDATE pairs SET since=? WHERE id=?').run(ts, pairId),
@@ -158,10 +161,10 @@ export const store = {
     store.breakPairAll?.(pairId);
   },
   pairOf: (userId) => db.prepare('SELECT p.* FROM pairs p JOIN users u ON u.pair_id=p.id WHERE u.id=?').get(userId),
-  partnerOf: (user) => db.prepare('SELECT id,name,avatar,mood,last_seen,status FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
+  partnerOf: (user) => db.prepare('SELECT id,name,avatar,mood,last_seen,status,bday FROM users WHERE pair_id=? AND id!=?').get(user.pair_id, user.id),
 
-  addSchedule: (s) => { db.prepare('INSERT INTO schedules (id,pair_id,title,note,start_time,end_time,notify,created_by) VALUES (?,?,?,?,?,?,?,?)')
-    .run(s.id || id(), s.pair_id, s.title, s.note || null, s.start, s.end || null, s.notify ? 1 : 0, s.by || null); },
+  addSchedule: (s) => { db.prepare('INSERT INTO schedules (id,pair_id,title,note,start_time,end_time,notify,created_by,repeat) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(s.id || id(), s.pair_id, s.title, s.note || null, s.start, s.end || null, s.notify ? 1 : 0, s.by || null, s.repeat || null); },
   schedules: (pairId) => db.prepare('SELECT * FROM schedules WHERE pair_id=? ORDER BY start_time').all(pairId),
   delSchedule: (pairId, sid) => db.prepare('DELETE FROM schedules WHERE pair_id=? AND id=?').run(pairId, sid),
 

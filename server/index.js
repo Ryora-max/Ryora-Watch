@@ -80,7 +80,7 @@ app.post('/api/pair/break', auth, (req, res) => {
 app.get('/api/me', auth, (req, res) => {
   const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
   const pair = req.user.pair_id ? store.pairOf(req.user.id) : null;
-  res.json({ user: { id: req.user.id, name: req.user.name, avatar: req.user.avatar, pet_name: req.user.pet_name, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
+  res.json({ user: { id: req.user.id, name: req.user.name, avatar: req.user.avatar, pet_name: req.user.pet_name, bday: req.user.bday, ai_enabled: !!req.user.ai_enabled, mood: req.user.mood, ai_name: req.user.ai_name, ai_gender: req.user.ai_gender, status: req.user.status }, pair, partner, online: partner ? online.has(partner.id) : false, partnerBattery: partner ? (batt.get(partner.id) ?? null) : null, partnerLastSeen: partner?.last_seen ?? null });
 });
 
 app.post('/api/ai/toggle', auth, (req, res) => {
@@ -117,10 +117,12 @@ app.get('/api/schedules', auth, (req, res) => {
   res.json(store.schedules(req.user.pair_id));
 });
 app.post('/api/schedules', auth, (req, res) => {
-  const { title, note, start, end, notify } = req.body || {};
+  const { title, note, start, end, notify, repeat } = req.body || {};
   if (!req.user.pair_id || !title || !start) return res.status(400).json({ error: 'invalid' });
-  store.addSchedule({ pair_id: req.user.pair_id, title: title.slice(0, 80), note, start, end, notify, by: req.user.id });
+  const rep = ['daily', 'weekly'].includes(repeat) ? repeat : null;
+  store.addSchedule({ pair_id: req.user.pair_id, title: title.slice(0, 80), note, start, end, notify, by: req.user.id, repeat: rep });
   io.to(req.user.pair_id).emit('schedules:changed');
+  pushPartner(req.user, { title: '📅 Ryora Watch', body: `${req.user.name} nambah jadwal: ${title.slice(0, 60)}`, tag: 'sched' });
   res.json({ ok: true });
 });
 app.delete('/api/schedules/:id', auth, (req, res) => {
@@ -291,6 +293,27 @@ app.post('/api/ai/greeting', auth, async (req, res) => {
   res.json({ greeting });
 });
 
+// bestie proaktif — check-in random di tengah hari
+app.post('/api/ai/ping', auth, async (req, res) => {
+  const partner = req.user.pair_id ? store.partnerOf(req.user) : null;
+  const schedules = req.user.pair_id ? store.schedules(req.user.pair_id) : [];
+  const ctx = {
+    user: req.user, partner, schedules,
+    loc: partner ? store.latestLoc(partner.id) : null,
+    aiName: req.user.ai_name, aiGender: req.user.ai_gender,
+    history: [], facts: store.facts(req.user.id, 5),
+  };
+  const hints = ['ingetin dia minum air / makan', 'tanyain lagi ngapain', 'kirim semangat kecil', 'bikin joke receh', 'ingetin istirahat'];
+  let greeting = null;
+  try {
+    const { aiGreet } = await import('./ai.js');
+    greeting = await aiGreet(ctx, 'check-in', hints[Math.floor(Math.random() * hints.length)] + ' — SATU kalimat aja, casual banget');
+  } catch {}
+  if (!greeting) greeting = 'Eh, jangan lupa minum ya 💧';
+  store.addChatMsg(req.user.id, 'model', greeting);
+  res.json({ greeting });
+});
+
 app.post('/api/react', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
   const { type, tid, emoji } = req.body || {};
@@ -337,10 +360,17 @@ app.get('/api/tts', auth, async (req, res) => {
 });
 
 // --- Status text, countdown ketemu, kenangan ---
+// cadangan akun — login ulang pakai token (kode cadangan)
+app.post('/api/restore', (req, res) => {
+  const u = store.userByToken(String(req.body?.code || '').trim());
+  if (!u) return res.status(404).json({ error: 'kode salah' });
+  res.json({ token: u.token, user: { id: u.id, name: u.name } });
+});
+
 app.post('/api/profile', auth, (req, res) => {
-  const { name, avatar, pet_name } = req.body || {};
+  const { name, avatar, pet_name, bday } = req.body || {};
   if (name != null && !String(name).trim()) return res.status(400).json({ error: 'nama kosong' });
-  store.setProfile(req.user.id, { name, avatar, pet_name });
+  store.setProfile(req.user.id, { name, avatar, pet_name, bday });
   if (req.user.pair_id) io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
 });
@@ -696,6 +726,16 @@ io.on('connection', (socket) => {
     const list = mode === 'dare' ? TOD_DARE : TOD_TRUTH;
     const text = list[Math.floor(Math.random() * list.length)];
     io.to(u.pair_id).emit('tod:card', { mode: mode === 'dare' ? 'dare' : 'truth', text, from: u.name });
+  });
+
+  // --- nobar sync — countdown bareng di dua HP ---
+  socket.on('nobar:start', () => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('n' + u.id) || 0) < 10000) return;
+    lastMiss.set('n' + u.id, now);
+    io.to(u.pair_id).emit('nobar:go', { from: u.name, at: now + 4000 });
+    pushPartner(u, { title: '🎬 Ryora Watch', body: `${u.name} ngajak nobar — gas!`, tag: 'nobar' });
   });
 
   socket.on('disconnect', () => {

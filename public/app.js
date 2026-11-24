@@ -44,9 +44,17 @@ const updateSeen = () => {
   const el = $('#seen');
   if (el) el.textContent = partnerOnline ? 'online' : partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline';
 };
+let wasTogether = null;
 const updateTogether = () => {
+  const t = together();
   const el = $('#together');
-  if (el) el.style.display = together() ? '' : 'none';
+  if (el) el.style.display = t ? '' : 'none';
+  // "dia sampai" — selebrasi pas transisi jadi bareng (bukan saat app baru load)
+  if (wasTogether === false && t) {
+    heartRain(40); ding(); navigator.vibrate?.([200, 100, 200, 100, 400]);
+    toast(`💚 ${pname()} udah deket — kalian bareng sekarang!`, 6000);
+  }
+  wasTogether = t;
 };
 const mkIcon = (c, letter = '') => L.divIcon({ html: `<div style="width:20px;height:20px;background:${c};border:3px solid #fff;border-radius:50%;box-shadow:0 0 10px ${c};display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;font-family:sans-serif">${letter}</div>`, iconSize: [20, 20], iconAnchor: [10, 10], className: '' });
 
@@ -55,7 +63,17 @@ function authScreen() {
   const urlCode = new URLSearchParams(location.search).get('join');
   app.innerHTML = `<div class="screen"><div class="logo">🌊</div><h1>Ryora Watch</h1>
   <div class="card"><input id="name" placeholder="Nama kamu" maxlength="30"><button id="go">Masuk</button>
+  <button class="ghost" id="rstBtn" style="margin-top:10px">🔑 Masuk dengan kode cadangan</button>
+  <div id="rstBox" style="display:none;margin-top:10px"><input id="rstIn" placeholder="Tempel kode cadanganmu"><button id="rstGo" class="mini">Pulihkan akun</button></div>
   ${urlCode ? `<p class="muted">Kode undangan <b>${esc(urlCode)}</b> akan dipakai otomatis</p>` : ''}</div></div>`;
+  $('#rstBtn').onclick = () => { $('#rstBox').style.display = ''; $('#rstIn').focus(); };
+  $('#rstGo').onclick = async () => {
+    const code = $('#rstIn').value.trim(); if (!code) return;
+    const r = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+    const d = await r.json();
+    if (d.token) { token = d.token; localStorage.setItem('cw_token', token); toast('Akun dipulihkan! 🔑'); boot(); }
+    else toast(d.error || 'Kode salah');
+  };
   const go = async () => {
     if (!$('#name').value.trim()) return toast('Isi namamu dulu ya');
     const r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('#name').value }) });
@@ -190,6 +208,21 @@ async function mainUI() {
   const clockEl = $('#clock'), tickClock = () => { if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); };
   tickClock(); setInterval(tickClock, 5000);
   connectSocket(); show('home'); refreshMissStat(); shareBattery(); startGeo(); updateSeen(); updateTogether();
+  // bestie proaktif — check-in random tiap ~45-95 menit selama app kebuka
+  const pingLoop = () => setTimeout(async () => {
+    try {
+      if (!document.hidden) {
+        const r = await api('/ai/ping', { method: 'POST' });
+        if (r?.greeting) {
+          toast(`✦ ${aiName()}: ${r.greeting}`, 8000);
+          chatMsgs.push({ role: 'ai', text: r.greeting, ts: Date.now() });
+          if (currentTab === 'ai') renderMsgs();
+        }
+      }
+    } catch {}
+    pingLoop();
+  }, (45 + Math.random() * 50) * 60000);
+  pingLoop();
   tour();
   // Web Push — subscribe kalau notif udah diizinin
   (async () => {
@@ -300,6 +333,19 @@ function connectSocket() {
     toast(`💌 ${from} nulis surat buat kamu!`, 5000);
     loadLetters();
   });
+  socket.on('nobar:go', ({ from, at }) => {
+    const el = document.createElement('div'); el.className = 'nobarOv';
+    el.innerHTML = `<div class="nobx"><b>🎬 NOBAR BARENG!</b><span class="nbn">3</span><i>ajakan ${esc(from)} — tekan PLAY pas hitungan habis!</i></div>`;
+    document.body.appendChild(el);
+    ding(); navigator.vibrate?.([200, 100, 200, 100, 500]);
+    const n = el.querySelector('.nbn');
+    const tick = setInterval(() => {
+      const left = Math.ceil((at - Date.now()) / 1000);
+      if (left <= 0) { n.textContent = '▶️ PLAY!'; ding(); clearInterval(tick); setTimeout(() => el.remove(), 6000); }
+      else n.textContent = left;
+    }, 200);
+    el.onclick = () => { clearInterval(tick); el.remove(); };
+  });
   socket.on('tod:card', ({ mode, text, from }) => {
     ding(); navigator.vibrate?.(200);
     const el = $('#todState');
@@ -316,6 +362,15 @@ function connectSocket() {
     if (pn) pn.innerHTML = `${esc(pname())}${mood ? ' ' + mood : ''} <span id="dot">${$('#dot')?.textContent || '⚪'}</span><span id="pbatt">${$('#pbatt')?.textContent || ''}</span><span id="together" class="tbadge" style="display:${together() ? '' : 'none'}">💚 bareng</span>`;
 
     toast(`${pname()} lagi ${mood}`);
+    // mood sedih/lelah → tawaran peluk satu tap
+    if (['🥺', '😤', '🤒'].includes(mood)) {
+      const mp = document.createElement('div'); mp.className = 'moodprompt card';
+      mp.innerHTML = `<span>${esc(pname())} lagi ${mood}</span><button id="mpHug" class="mini">🤗 Peluk dia</button><button id="mpNo" class="mini">✕</button>`;
+      document.body.appendChild(mp);
+      setTimeout(() => mp.remove(), 25000);
+      mp.querySelector('#mpHug').onclick = () => { socket.emit('care:send', { kind: 'peluk' }); toast(`Peluk terkirim ke ${pname()} 🤗`); mp.remove(); };
+      mp.querySelector('#mpNo').onclick = () => mp.remove();
+    }
   });
 }
 
@@ -389,14 +444,30 @@ async function loadMissTab() {
 }
 
 // ---------- GEO + BATTERY ----------
-let geoState = 'off'; // off | on | denied | unsupported
+let geoState = 'off'; // off | on | denied | unsupported | paused
+let geoOff = localStorage.cw_geo_off === '1', geoWatch = null;
+function toggleGeo() {
+  geoOff = !geoOff;
+  if (geoOff) {
+    localStorage.cw_geo_off = '1';
+    if (geoWatch != null) navigator.geolocation.clearWatch(geoWatch);
+    geoWatch = null; geoState = 'paused';
+    toast('📍 Share lokasi dimatikan — hemat baterai');
+  } else {
+    delete localStorage.cw_geo_off;
+    geoState = 'off'; startGeo();
+    toast('📍 Share lokasi aktif lagi');
+  }
+  renderGeoCard();
+}
 function startGeo() {
+  if (geoOff) { geoState = 'paused'; renderGeoCard(); return; }
   if (!navigator.geolocation) { geoState = 'unsupported'; return; }
   navigator.permissions?.query({ name: 'geolocation' }).then(p => {
     if (p.state === 'denied') geoState = 'denied';
     p.onchange = () => { if (p.state === 'denied') { geoState = 'denied'; renderGeoCard(); } };
   }).catch(() => {});
-  navigator.geolocation.watchPosition(p => {
+  geoWatch = navigator.geolocation.watchPosition(p => {
     geoState = 'on'; renderGeoCard();
     myLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
     socket?.emit('location:update', myLoc);
@@ -420,6 +491,8 @@ function renderGeoCard() {
   c.style.display = '';
   c.innerHTML = geoState === 'denied'
     ? `📍 <b>Lokasi ditolak</b><span>Aktifkan di ikon 🔒 di address bar browser</span>`
+    : geoState === 'paused'
+    ? `📍 <b>Share lokasi mati</b><span>Dia nggak lihat posisimu sekarang</span><button id="geoGo" class="mini">Nyalakan lagi</button>`
     : `📍 <b>Lokasi belum aktif</b><span>Biar ${esc(pname())} bisa lihat posisimu live</span><button id="geoGo" class="mini">Aktifkan lokasi</button>`;
   const g = $('#geoGo'); if (g) g.onclick = askGeo;
 }
@@ -459,7 +532,8 @@ function show(tab) {
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
-    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
+    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
+    $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
     initMap(); renderGeoCard(); return;
   }
   if (tab === 'miss') {
@@ -491,6 +565,7 @@ function show(tab) {
             <div id="todState" class="todcard" style="display:none"></div>
           </div>
         </div>
+        <button id="nobar" class="sbtn" style="--c:#ff7fb0;width:100%;margin-top:8px">🎬<span>Nobar bareng — play serentak</span></button>
       </div>
       <div class="msect"><b>Kirim sesuatu</b>
         <div class="sendgrid">
@@ -520,6 +595,7 @@ function show(tab) {
     const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
+    $('#nobar').onclick = () => { socket.emit('nobar:start'); toast(`Ngajak ${pname()} nobar… 🎬`); };
     setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
@@ -536,6 +612,9 @@ function show(tab) {
     v.innerHTML = `<div class="list">
       <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
       <div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div>
+      <div class="addrow"><label class="hsub">🔁</label><select id="srep"><option value="">sekali saja</option><option value="daily">tiap hari</option><option value="weekly">tiap minggu</option></select>
+        <span class="hsub" style="margin-left:auto">atau ajak quality time:</span>
+        <button class="qt" data-q="☕ Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk">🍽️</button></div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
@@ -547,6 +626,13 @@ function show(tab) {
     $('#stime').value = new Date(nx.getTime() - nx.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#sadd').onclick = addSchedule;
     $('#st').onkeydown = e => { if (e.key === 'Enter') addSchedule(); };
+    // ajakan quality time — satu tap → jadwal + notif ke dia
+    v.querySelectorAll('.qt').forEach(b => b.onclick = async () => {
+      const t = b.dataset.q;
+      await api('/schedules', { method: 'POST', body: { title: t, start: Date.now() + 3 * 3600000, notify: true } });
+      schedCache = await api('/schedules'); loadSchedules();
+      toast(`${t} — undangan terkirim ke ${pname()} 💌`);
+    });
     $('#segList').onclick = () => { $('#segList').classList.add('on'); $('#segCal').classList.remove('on'); $('#scal').style.display = 'none'; $('#slist').style.display = ''; };
     $('#segCal').onclick = () => { $('#segCal').classList.add('on'); $('#segList').classList.remove('on'); $('#slist').style.display = 'none'; $('#scal').style.display = ''; renderCal(); };
     $('#bucketAdd').onclick = addBucket;
@@ -585,7 +671,11 @@ function show(tab) {
         toast('Mode suara mati');
       }
     };
-    return setupMic('#micBtn', '#cin');
+    setupMic('#micBtn', '#cin');
+    // mic = mode ngobrol kontinyu — bukan mic sekali terus berhenti
+    $('#micBtn').onclick = () => $('#vmode').click();
+    $('#micBtn').title = 'Ketuk = ngobrol terus sama ' + aiName();
+    return;
   }
   if (tab === 'kita') return renderKita(v);
 }
@@ -605,6 +695,12 @@ function renderKita(v) {
       <div class="themrow">${[['', '🌊', 'Langit'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
     <div class="msect"><b>📦 Lainnya</b>
+      <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
+      <div id="bakBox" style="display:none" class="bakbox">
+        <div class="hsub">Simpan kode ini baik-baik — kalau ganti HP / data kehapus, masuk pakai kode ini biar akun &amp; pair-mu balik.</div>
+        <div class="bakcode" id="bakCode">${localStorage.cw_token || ''}</div>
+        <button id="bakCopy" class="mini">📋 Salin kode</button>
+      </div>
       <button id="wrapBtn" class="ghost">📊 Rekap bulan ini</button>
       <button id="wrapYr" class="ghost">🗓️ Rekap ${new Date().getFullYear()}</button>
       <button id="exportBtn" class="ghost">⬇️ Export semua data</button>
@@ -638,6 +734,11 @@ function renderKita(v) {
     localStorage.cw_theme = b.dataset.t;
     v.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
   });
+  q('#bakBtn').onclick = () => { const b = q('#bakBox'); b.style.display = b.style.display === 'none' ? '' : 'none'; };
+  q('#bakCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText(localStorage.cw_token || ''); toast('Kode disalin 📋 — simpan di tempat aman!'); }
+    catch { prompt('Salin kode ini:', localStorage.cw_token || ''); }
+  };
   q('#wrapBtn').onclick = () => wrappedModal();
   q('#wrapYr').onclick = () => wrappedModal('year');
   q('#exportBtn').onclick = async () => {
@@ -685,18 +786,25 @@ function capsuleMenu() {
 
 // ---------- HOME / WIDGET DASHBOARD ----------
 async function renderHome(v) {
-  v.innerHTML = `<div class="home"><div class="hskel">memuat…</div></div>`;
+  v.innerHTML = `<div class="home"><div class="hskel"><i></i><i></i><i></i><i></i></div></div>`;
   const d = await api('/home');
   if (!d || currentTab !== 'home' || !$('#view .home')) return;
   const p = me.partner;
-  const next = schedCache.find(s => s.start_time > Date.now() - 60000);
+  const next = schedCache.map(s => ({ s, t: nextOcc(s) })).filter(x => x.t > Date.now() - 60000).sort((a, b) => a.t - b.t)[0]?.s;
   const answered = !!d.myAnswer, both = answered && !!d.theirAnswer;
   // monthsary hari ini? — tanggal jadian & bukan hari pertama
   const c0 = new Date(sinceTs()), n0 = new Date();
   const isMday = c0.getDate() === n0.getDate() && daysTogether() > 28;
   const mNum = (n0.getFullYear() - c0.getFullYear()) * 12 + (n0.getMonth() - c0.getMonth());
+  // ultah — countdown kalau ≤ 14 hari, banner + konfetti pas harinya
+  const myB = bdayIn(me.user.bday), theirB = bdayIn(p.bday);
+  const bdayBanner = theirB === 0 ? `<div class="hcard mday">🎂 <b>Hari ini ultah ${esc(pname())}!</b><span>Ucapiin dia sekarang 🎉</span></div>`
+    : myB === 0 ? `<div class="hcard mday">🎂 <b>Selamat ulang tahun, ${esc(me.user.name)}!</b><span>Hari spesialmu 🎉</span></div>` : '';
+  const bdayChip = theirB != null && theirB > 0 && theirB <= 14 ? `<div class="hchip">🎂 ultahnya ${theirB} hari lagi</div>`
+    : myB != null && myB > 0 && myB <= 14 ? `<div class="hchip">🎂 ultahmu ${myB} hari lagi</div>` : '';
   v.innerHTML = `<div class="home">
     ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
+    ${bdayBanner}
     <div class="hcard pcard">
       <span class="avatar big">${esc(av(p))}</span>
       <div class="pinfo"><b>${esc(pname())} ${p.mood || ''}</b>
@@ -711,6 +819,7 @@ async function renderHome(v) {
       ${me.pair.next_meet ? `<div class="hchip" id="hNext">✈️ ${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? dd + ' hari lagi' : 'ketemu hari ini!'; })()}</div>`
         : next ? `<div class="hchip" id="hNext">⏰ ${new Date(next.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ${esc(next.title.slice(0, 10))}</div>`
         : `<div class="hchip" id="hNext">🎂 ${nextMonthsary().months} bulan -${nextMonthsary().days} hari</div>`}
+      ${bdayChip}
       <div class="hchip" id="hWrap2">📊 rekap</div>
       <div class="hchip" id="hWx">🌦️…</div>
     </div>
@@ -768,6 +877,12 @@ async function renderHome(v) {
     localStorage.cw_mday = n0.toDateString();
     heartRain(60); ding(); navigator.vibrate?.([300, 120, 300, 120, 400]);
     toast(`🎂 Happy monthsary ke-${mNum}! 💕`, 6000);
+  }
+  // ultah confetti — sekali per tanggal
+  if ((theirB === 0 || myB === 0) && localStorage.cw_bday !== n0.toDateString()) {
+    localStorage.cw_bday = n0.toDateString();
+    heartRain(80); ding(); navigator.vibrate?.([300, 120, 300, 120, 500]);
+    toast(theirB === 0 ? `🎉 HARI INI ULTAH ${pname()}! Ucapiin sekarang 🎂` : `🎉 SELAMAT ULANG TAHUN! 🎂`, 8000);
   }
   // mood minggu ini
   api('/mood/week').then(mw => {
@@ -839,8 +954,9 @@ async function renderHome(v) {
       const s = Math.min(1, 640 / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      const data = c.toDataURL('image/jpeg', .72);
-      api('/photo', { method: 'POST', body: { img: data } }).then(r => {
+      const data = c.toDataURL('image/jpeg', .62);
+      const caption = prompt('Caption (opsional):') || '';
+      api('/photo', { method: 'POST', body: { img: data, caption } }).then(r => {
         if (r.ok) { toast('Foto terkirim 📸'); renderHome(v); } else toast(r.error || 'gagal kirim');
       });
       URL.revokeObjectURL(img.src);
@@ -860,6 +976,22 @@ function photoViewer(src) {
 const aiName = () => me?.user?.ai_name || 'AI';
 const pname = () => me?.user?.pet_name || me?.partner?.name || '—'; // panggilan sayang
 const av = (u) => u?.avatar || (u?.name || '?')[0].toUpperCase();
+const bdayIn = (b) => { // hari menuju ultah (0 = hari ini), null kalau nggak diisi
+  if (!b) return null;
+  const n = new Date(), parts = String(b).slice(0, 10).split('-').map(Number);
+  if (parts.length < 3) return null;
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  let t = new Date(n.getFullYear(), parts[1] - 1, parts[2]);
+  if (t < today) t = new Date(n.getFullYear() + 1, parts[1] - 1, parts[2]);
+  return Math.round((t - today) / 86400000);
+};
+const nextOcc = (s) => { // jadwal berulang → waktu occurrence berikutnya
+  if (!s.repeat) return s.start_time;
+  const step = s.repeat === 'daily' ? 86400000 : 7 * 86400000;
+  let t = s.start_time;
+  while (t + 3600000 < Date.now()) t += step;
+  return t;
+};
 const sinceTs = () => me.pair.since || me.pair.created_at;
 const daysTogether = () => Math.floor((Date.now() - sinceTs()) / 86400000) + 1;
 const nextMonthsary = () => {
@@ -909,13 +1041,13 @@ async function loadSchedules() {
   schedCache = await api('/schedules');
   const now = Date.now();
   const until = (t) => { const m = Math.round((t - now) / 60000); if (m <= 0) return 'sekarang'; if (m < 60) return m + ' mnt lagi'; if (m < 1440) return Math.round(m / 60) + ' jam lagi'; return Math.round(m / 1440) + ' hari lagi'; };
-  $('#slist').innerHTML = schedCache.map(s => {
-    const active = s.start_time <= now && (s.end_time || s.start_time + 3600000) > now;
-    const d = new Date(s.start_time);
+  $('#slist').innerHTML = schedCache.map(s => ({ s, t: nextOcc(s) })).sort((a, b) => a.t - b.t).map(({ s, t }) => {
+    const active = t <= now && (s.end_time || t + 3600000) > now;
+    const d = new Date(t);
     const dayLabel = d.toDateString() === new Date().toDateString() ? 'hari ini' : d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
     return `<div class="item ${active ? 'now' : ''}">
       <div class="itemtime"><b>${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</b><span>${dayLabel}</span></div>
-      <div class="itembody"><div>${sicon(s.title)} ${esc(s.title)}</div><span class="chip">${active ? '🔥 berlangsung' : '⏳ ' + until(s.start_time)}</span></div>
+      <div class="itembody"><div>${sicon(s.title)} ${esc(s.title)}${s.repeat ? ' 🔁' : ''}</div><span class="chip">${active ? '🔥 berlangsung' : '⏳ ' + until(t)}</span></div>
       <button class="del" data-id="${s.id}">🗑</button></div>`;
   }).join('') || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => { await api('/schedules/' + b.dataset.id, { method: 'DELETE' }); schedCache = await api('/schedules'); loadSchedules(); });
@@ -925,7 +1057,9 @@ async function addSchedule() {
   const title = $('#st').value.trim(), start = new Date($('#stime').value).getTime();
   if (!title) return toast('Isi judul jadwal dulu');
   if (!start || isNaN(start)) return toast('Pilih tanggal & jam dulu');
-  await api('/schedules', { method: 'POST', body: { title, start, notify: true } });
+  const repeat = $('#srep')?.value || null;
+  await api('/schedules', { method: 'POST', body: { title, start, notify: true, repeat } });
+  if ($('#srep')) $('#srep').value = '';
   $('#st').value = '';
   schedCache = await api('/schedules');
   loadSchedules();
@@ -985,7 +1119,7 @@ async function checkReminders() {
   refreshMissStat();
   for (const s of schedCache) {
     if (!s.notify) continue;
-    const diff = s.start_time - Date.now();
+    const diff = nextOcc(s) - Date.now();
     const key5 = s.id + ':5', key0 = s.id + ':0';
     // 5 menit sebelum — heads-up
     if (!reminded.has(key5) && diff > 60000 && diff < 5.5 * 60000) {
@@ -1334,6 +1468,8 @@ function settings() {
       </div>
       <div class="hqin"><input id="nameIn" placeholder="Nama kamu" maxlength="30" value="${esc(me.user.name)}"><button id="nameBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
+      <div class="hqin"><input id="bdayIn" type="date" value="${me.user.bday || ''}"><button id="bdayBtn" class="mini">🎂</button></div>
+      <div class="hsub" style="margin-top:-6px">↑ tanggal lahirmu — dia bakal diingetin pas ultahmu deket</div>
       <div class="muted" style="text-align:left;font-size:12px">Mood kamu:</div>
       <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
     </div>
@@ -1371,6 +1507,12 @@ function settings() {
     me.user.name = t;
     await api('/profile', { method: 'POST', body: { name: t } });
     toast('Nama disimpan ✨');
+  };
+  el.querySelector('#bdayBtn').onclick = async () => {
+    const dv = el.querySelector('#bdayIn').value; if (!dv) return;
+    me.user.bday = dv;
+    await api('/profile', { method: 'POST', body: { bday: dv } });
+    toast(`Ultahmu: ${new Date(dv + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })} 🎂`);
   };
   el.querySelector('#sinceBtn').onclick = async () => {
     const dv = el.querySelector('#sinceIn').value; if (!dv) return;
@@ -1446,4 +1588,8 @@ async function loadCapsules() {
 if (localStorage.cw_theme) document.documentElement.dataset.theme = localStorage.cw_theme;
 if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// viewport dinamis — keyboard iOS menyusutkan layar, input chat tetap kelihatan
+const setVH = () => document.documentElement.style.setProperty('--vh', (window.visualViewport?.height || innerHeight) + 'px');
+addEventListener('resize', setVH); window.visualViewport?.addEventListener('resize', setVH); setVH();
+
 if (token) boot(); else authScreen();
