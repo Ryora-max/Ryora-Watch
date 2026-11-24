@@ -639,6 +639,14 @@ io.use((socket, next) => {
   socket.user = u; next();
 });
 
+const tttGames = new Map(), tttInvites = new Map();
+const tttWinner = (b) => {
+  for (const [a, c, d] of [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]])
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+  return null;
+};
+const tttState = (g) => ({ board: g.board, turn: g.turn, x: g.x, o: g.o, winner: g.winner || null, done: !!g.done });
+
 io.on('connection', (socket) => {
   const u = socket.user;
   online.set(u.id, socket.id);
@@ -746,6 +754,44 @@ io.on('connection', (socket) => {
     lastMiss.set('pr' + u.id, now);
     socket.to(u.pair_id).emit('photo:ask', { from: u.name });
     pushPartner(u, { title: '📸 Ryora Watch', body: `${u.name} mau lihat kamu lagi apa — kirim foto!`, tag: 'photoask' });
+  });
+
+  // --- XOXO / tic-tac-toe realtime ---
+  socket.on('ttt:invite', () => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('x' + u.id) || 0) < 15000) return;
+    lastMiss.set('x' + u.id, now);
+    tttInvites.set(u.pair_id, u.id);
+    socket.to(u.pair_id).emit('ttt:invite', { from: u.name });
+    pushPartner(u, { title: '⭕ Ryora Watch', body: `${u.name} ngajak main XOXO!`, tag: 'ttt' });
+  });
+  socket.on('ttt:accept', () => {
+    if (!u.pair_id) return;
+    const inviter = tttInvites.get(u.pair_id);
+    if (!inviter || inviter === u.id) return;
+    const g = { board: Array(9).fill(''), turn: 'x', x: inviter, o: u.id };
+    tttGames.set(u.pair_id, g);
+    tttInvites.delete(u.pair_id);
+    io.to(u.pair_id).emit('ttt:start', { x: inviter, o: u.id });
+    io.to(u.pair_id).emit('ttt:state', tttState(g));
+  });
+  socket.on('ttt:move', ({ cell }) => {
+    const g = u.pair_id && tttGames.get(u.pair_id);
+    if (!g || g.done) return;
+    const mark = g.x === u.id ? 'x' : g.o === u.id ? 'o' : null;
+    if (!mark || g.turn !== mark || cell < 0 || cell > 8 || g.board[cell]) return;
+    g.board[cell] = mark;
+    const w = tttWinner(g.board);
+    if (w || !g.board.includes('')) { g.done = true; g.winner = w || 'draw'; }
+    else g.turn = mark === 'x' ? 'o' : 'x';
+    io.to(u.pair_id).emit('ttt:state', tttState(g));
+  });
+  socket.on('ttt:again', () => {
+    const g = u.pair_id && tttGames.get(u.pair_id);
+    if (!g || !g.done) return;
+    g.board = Array(9).fill(''); g.turn = 'x'; delete g.done; delete g.winner;
+    io.to(u.pair_id).emit('ttt:state', tttState(g));
   });
 
   // --- fokus bareng — timer sinkron di dua HP ---

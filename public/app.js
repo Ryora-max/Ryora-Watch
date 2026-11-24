@@ -382,6 +382,22 @@ function connectSocket() {
     toast(`💌 ${from} nulis surat buat kamu!`, 5000);
     loadLetters();
   });
+  // XOXO — invite & state
+  socket.on('ttt:invite', ({ from }) => {
+    ding(); navigator.vibrate?.(150);
+    const mp = document.createElement('div'); mp.className = 'moodprompt card';
+    mp.innerHTML = `<span>⭕ ${esc(from)} ngajak main XOXO!</span><button id="ttA" class="mini">Gas!</button><button id="ttN" class="mini">✕</button>`;
+    document.body.appendChild(mp);
+    setTimeout(() => mp.remove(), 30000);
+    mp.querySelector('#ttA').onclick = () => { socket.emit('ttt:accept'); mp.remove(); };
+    mp.querySelector('#ttN').onclick = () => mp.remove();
+  });
+  socket.on('ttt:start', ({ x }) => {
+    tttMark = x === me.user.id ? 'x' : 'o';
+    if (currentTab !== 'miss') { document.querySelectorAll('nav button').forEach(b => b.classList.remove('on')); document.querySelector('[data-t="miss"]')?.classList.add('on'); show('miss'); }
+    toast(`⭕ XOXO mulai — kamu ${tttMark === 'x' ? '❌ jalan duluan' : '⭕'}!`, 4000);
+  });
+  socket.on('ttt:state', (g) => { tttG = g; renderTtt(g); });
   socket.on('nobar:go', ({ from, at }) => {
     const el = document.createElement('div'); el.className = 'nobarOv';
     el.innerHTML = `<div class="nobx"><b>🎬 NOBAR BARENG!</b><span class="nbn">3</span><i>ajakan ${esc(from)} — tekan PLAY pas hitungan habis!</i></div>`;
@@ -614,6 +630,12 @@ function show(tab) {
             <div id="todState" class="todcard" style="display:none"></div>
           </div>
         </div>
+        <div class="playbox" style="margin-top:8px">
+          <div class="pbt">⭕ XOXO</div>
+          <div id="tttState" class="hsub" style="min-height:16px;text-align:center"></div>
+          <div id="tttBoard" class="tttboard" style="display:none"></div>
+          <button id="tttBtn" class="mini ghost" style="width:100%">Ajak main</button>
+        </div>
         <button id="nobar" class="sbtn" style="--c:#ff7fb0;width:100%;margin-top:8px">🎬<span>Nobar bareng — play serentak</span></button>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
@@ -647,6 +669,8 @@ function show(tab) {
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
     $('#nobar').onclick = () => { socket.emit('nobar:start'); toast(`Ngajak ${pname()} nobar… 🎬`); };
     $('#focusBtn').onclick = () => { socket.emit('focus:start', { dur: 25 }); toast(`Ngajak ${pname()} fokus bareng ⏱️`); };
+    $('#tttBtn').onclick = () => { if (!tttG?.done) { socket.emit('ttt:invite'); $('#tttState').textContent = `nunggu ${pname()} terima… ⏳`; } else socket.emit('ttt:again'); };
+    if (tttG) renderTtt(tttG);
     setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
@@ -662,10 +686,14 @@ function show(tab) {
   if (tab === 'sched') {
     v.innerHTML = `<div class="list">
       <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
-      <div class="addform"><input id="st" placeholder="Judul jadwal" maxlength="80"><input id="stime" type="datetime-local"><button id="sadd">Tambah</button></div>
-      <div class="addrow"><span class="hsub" style="flex-shrink:0">ulang:</span><select id="srep"><option value="">sekali saja</option><option value="daily">🔁 tiap hari</option><option value="weekly">🔁 tiap minggu</option></select></div>
-      <div class="addrow"><span class="hsub">⚡ ajak:</span>
-        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button><span style="flex:1"></span></div>
+      <div class="hcard" style="gap:9px">
+        <div class="hlabel">➕ Jadwal baru</div>
+        <input id="st" placeholder="Judul (misal: ☕ Call yuk)" maxlength="80">
+        <div class="hqin"><input id="stime" type="datetime-local"><select id="srep"><option value="">sekali</option><option value="daily">🔁 harian</option><option value="weekly">🔁 mingguan</option></select></div>
+        <button id="sadd">Tambah</button>
+      </div>
+      <div class="addrow" style="justify-content:center;gap:10px"><span class="hsub">⚡ ajak:</span>
+        <button class="qt" data-q="☕ Call yuk" title="Call yuk">☕</button><button class="qt" data-q="🎬 Nobar yuk" title="Nobar yuk">🎬</button><button class="qt" data-q="🍽️ Date yuk" title="Date yuk">🍽️</button></div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
@@ -1063,6 +1091,24 @@ const nextMonthsary = () => {
   const months = (m.getFullYear() - c.getFullYear()) * 12 + (m.getMonth() - c.getMonth());
   return { months, days: Math.ceil((m - n) / 86400000) };
 };
+// ---------- XOXO ----------
+let tttG = null, tttMark = null;
+function renderTtt(g) {
+  const box = $('#tttBoard'), st = $('#tttState'), btn = $('#tttBtn');
+  if (!box) return; // tab kangen belum kebuka — state tetap kesimpen di tttG
+  box.style.display = 'grid';
+  box.innerHTML = g.board.map((v, i) => `<button class="tttc ${v}" data-i="${i}">${v === 'x' ? '❌' : v === 'o' ? '⭕' : ''}</button>`).join('');
+  box.querySelectorAll('.tttc').forEach(b => b.onclick = () => { if (!b.textContent) socket.emit('ttt:move', { cell: +b.dataset.i }); });
+  if (g.done) {
+    st.textContent = g.winner === 'draw' ? '🤝 seri!' : g.winner === tttMark ? '🎉 KAMU MENANG!' : `😆 ${pname()} menang!`;
+    btn.textContent = '🔁 Main lagi'; btn.style.display = '';
+    if (g.winner === tttMark) { heartRain(25); ding(); navigator.vibrate?.([200, 100, 200]); }
+  } else {
+    st.textContent = g.turn === tttMark ? '✨ giliran kamu' : `giliran ${pname()}…`;
+    btn.style.display = 'none';
+  }
+}
+
 // ---------- DOODLE ----------
 function setupDoodle() {
   const cv = $('#doodle'); if (!cv) return;
