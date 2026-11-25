@@ -1,6 +1,8 @@
 # Ryora Watch 🌊
 
-PWA couple-only companion — aplikasi berdua untuk kamu & pasangan. Express + Socket.IO + SQLite, installable di HP (Add to Home Screen).
+PWA couple-only companion — aplikasi berdua untuk kamu & pasangan. Express + Socket.IO + SQLite (libsql/Turso sync), installable di HP (Add to Home Screen).
+
+**Live: https://ryora.lyrebird-butterfly.ts.net** (Tailscale Funnel + auto-start laptop)
 
 ## Fitur
 
@@ -42,20 +44,23 @@ npm install
 npm start              # → http://localhost:3000
 ```
 
-## Demo instan (laptop + tunnel)
+## Run lokal (laptop)
 
 ```bash
-start-ryora.bat        # server + cloudflared tunnel — copy URL https-nya
+start-ryora.bat        # server + Tailscale Funnel → https://ryora.lyrebird-butterfly.ts.net
 # buka di HP berdua → Add to Home Screen → pairing → GPS & push jalan
+# `ryora.vbs` di shell:startup bikin ini auto-jalan tiap Windows login
 ```
 
-## Deploy permanen
+## Deploy permanen (aktual)
 
-**Koyeb + Turso — gratis, tanpa kartu, data persisten.** Panduan lengkap: [`docs/DEPLOY.md`](docs/DEPLOY.md)
+**Tailscale Funnel + Turso — gratis, tanpa kartu, URL tetap selamanya.** Detail: [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
-Singkat: Turso (login GitHub) → `turso db create ryora` + token → Koyeb (login GitHub) → deploy repo → isi env `GEMINI_API_KEY`, `TURSO_URL`, `TURSO_TOKEN`. DB SQLite lokal auto-sync ke Turso jadi kenangan/surat/pair selamat walau redeploy.
+- Tunnel: `tailscale funnel --bg --https=443 localhost:3000` (hostname `ryora`, tailnet `lyrebird-butterfly`)
+- DB: libsql embedded replica `data/replica.db` → auto-sync Turso tiap 60 detik → data selamat walau laptop restart
+- Migrasi dari `data/couple.db` (node:sqlite lama) otomatis saat pertama jalan dengan `TURSO_URL`
 
-`render.yaml` juga tersedia kalau mau pakai Render (butuh kartu untuk free tier sekarang).
+Kalau nanti mau pindah ke Koyeb/Render/Fly: tinggal deploy repo + set env `GEMINI_API_KEY`, `TURSO_URL`, `TURSO_TOKEN` — data ikut otomatis karena udah di Turso.
 
 ## Catatan teknis
 

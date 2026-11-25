@@ -1,0 +1,21 @@
+const puppeteer = require('puppeteer');
+const B = 'http://localhost:3000';
+const post = (p, b, t) => fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(t ? { 'x-token': t } : {}) }, body: JSON.stringify(b || {}) }).then(r => r.json());
+(async () => {
+  const ua = await post('/api/register', { name: 'Sky' });
+  const ub = await post('/api/register', { name: 'Tiara' });
+  const pc = await post('/api/pair/create', {}, ua.token);
+  await post('/api/pair/join', { code: pc.code }, ub.token);
+  const browser = await puppeteer.launch({ headless: 'new', userDataDir: require('os').tmpdir() + '/pm_' + Date.now() });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, isMobile: true });
+  page.on('pageerror', e => console.log('ERR', e.message));
+  await page.evaluateOnNewDocument(t => { localStorage.cw_setup_done = '1'; localStorage.cw_token = t; localStorage.cw_toured = '1'; }, ua.token);
+  await page.goto(B, { waitUntil: 'domcontentloaded' });
+  await new Promise(r => setTimeout(r, 3500));
+  await page.evaluate(() => document.querySelector('[data-t="map"]')?.click());
+  await new Promise(r => setTimeout(r, 5000));
+  await page.screenshot({ path: 'test/shot_map2.png' });
+  await browser.close();
+  console.log('done');
+})();
