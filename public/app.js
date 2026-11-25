@@ -191,7 +191,7 @@ window.addEventListener('online', () => conn('off'));
 async function mainUI() {
   app.innerHTML = `
   <header>
-    <div class="who"><span class="avatar">${esc(av(me.partner))}</span>
+    <div class="who">${avHtml(me.partner)}
       <div class="whoinfo"><div class="pname">${esc(pname())}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
       <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span> <span id="pstatus" class="stag">${esc(me.partner.status || '')}</span></div></div>
     </div>
@@ -577,7 +577,7 @@ function startGeo() {
     myLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
     socket?.emit('location:update', myLoc);
     if (map) {
-      if (!markers.me) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
+      if (!markers.me) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', avMarker(me.user)) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
       else markers.me.setLatLng([myLoc.lat, myLoc.lng]);
     }
     fitBoth(); updateTogether();
@@ -608,12 +608,12 @@ async function shareBattery() {
 
 function updatePartnerMarkers(l) {
   if (map) {
-    if (!markers.p) markers.p = L.marker([l.lat, l.lng], { icon: mkIcon('#5cc8ff', av(me.partner)) }).addTo(map);
+    if (!markers.p) markers.p = L.marker([l.lat, l.lng], { icon: mkIcon('#5cc8ff', avMarker(me.partner)) }).addTo(map);
     else markers.p.setLatLng([l.lat, l.lng]);
   }
   fitBoth();
   const lb = $('#locpanel');
-  if (lb) lb.innerHTML = `<span class="avatar">${esc(av(me.partner))}</span>
+  if (lb) lb.innerHTML = `${avHtml(me.partner)}
     <div class="locinfo"><b>${esc(pname())}</b><span>${distText() ? distText() + ' · ' : ''}${agoText(l.ts)}</span></div>
     <button id="locCenter" class="iconbtn">◎</button>`;
   const lc = $('#locCenter');
@@ -637,7 +637,7 @@ function show(tab) {
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
-    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div><div class="pinchips" id="pinChips"></div>`;
+    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel">${avHtml(me.partner)}<div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div><div class="pinchips" id="pinChips"></div>`;
     $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
     $('#pinBtn').onclick = async () => {
       if (!myLoc) return toast('Lokasimu belum ada — nyalakan GPS dulu');
@@ -1024,7 +1024,7 @@ async function renderHome(v) {
     ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
     ${bdayBanner}
     <div class="hcard pcard">
-      <span class="avatar big">${esc(av(p))}</span>
+      ${avHtml(p, 'big')}
       <div class="pinfo"><b>${esc(pname())} ${p.mood || ''}</b>
         <span>${partnerOnline ? '🟢 online' : '⚪ ' + (partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline')}${distText() ? ' · 📍 ' + distText() : ''}</span>
         <span id="hstatus" class="stag">${esc(p.status || '')}</span>
@@ -1032,6 +1032,7 @@ async function renderHome(v) {
       </div>
       <div class="hdays">💕<b>${daysTogether()}</b><span>hari</span></div>
     </div>
+    <div class="hmood"><span class="hsub">mood kamu</span><div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div></div>
     <div class="hchips">
       <div class="hchip">🔥 ${d.streak || 0} hari</div>
       ${me.pair.next_meet ? `<div class="hchip" id="hNext">✈️ ${(() => { const dd = Math.ceil((me.pair.next_meet - Date.now()) / 86400000); return dd > 0 ? dd + ' hari lagi' : 'ketemu hari ini!'; })()}</div>`
@@ -1074,6 +1075,12 @@ async function renderHome(v) {
       ${d.feed.map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('')}
     </div>` : ''}
   </div>`;
+  v.querySelectorAll('.hmood .mood').forEach(b => b.onclick = async () => {
+    me.user.mood = b.dataset.m;
+    v.querySelectorAll('.hmood .mood').forEach(x => x.classList.toggle('on', x === b));
+    await api('/mood', { method: 'POST', body: { mood: b.dataset.m } });
+    toast(`Mood kamu: ${b.dataset.m}`);
+  });
   $('#hWrap2') && ($('#hWrap2').onclick = () => wrappedModal());
   $('#hAsk').onclick = () => { socket.emit('photo:request'); toast(`Nanya ${pname()} lagi apa 📸…`); };
   api('/weather').then(w => {
@@ -1196,6 +1203,13 @@ function photoViewer(src) {
 const aiName = () => me?.user?.ai_name || 'AI';
 const pname = () => me?.user?.pet_name || me?.partner?.name || '—'; // panggilan sayang
 const av = (u) => u?.avatar || (u?.name || '?')[0].toUpperCase();
+// avatar bisa emoji atau foto dari galeri (data URL)
+const avHtml = (u, cls = '') => u?.avatar?.startsWith('data:')
+  ? `<span class="avatar ${cls}"><img src="${u.avatar}" alt=""></span>`
+  : `<span class="avatar ${cls}">${esc(av(u))}</span>`;
+const avMarker = (u) => u?.avatar?.startsWith('data:')
+  ? `<img src="${u.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`
+  : esc(av(u));
 const isQuiet = () => { // jam tenang — ping & getar ditahan
   const f = me?.user?.dnd_from, t = me?.user?.dnd_to;
   if (f == null || t == null) return false;
@@ -1337,7 +1351,7 @@ function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-  if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', me.user.name[0].toUpperCase()) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
+  if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', avMarker(me.user)) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
   api('/partner/location').then(d => { if (d?.lat != null) { partnerLoc = d; lastSync = Date.now(); updatePartnerMarkers(d); if (d.trail?.length) { trailLine?.remove(); trailLine = L.polyline(d.trail.map(t => [t.lat, t.lng]), { color: '#5cc8ff', weight: 3, opacity: .5, dashArray: '6 8' }).addTo(map); } } });
   loadPins();
 }
@@ -1784,8 +1798,10 @@ function settings() {
   el.innerHTML = `<h3>⚙️ Pengaturan</h3>
     <div class="ssect"><b>👤 Profil kamu</b>
       <div class="avrow">
-        <span class="avatar big" id="myAv">${esc(av(me.user))}</span>
+        ${avHtml(me.user, 'big').replace('class="avatar', 'id="myAv" class="avatar')}
         <div class="avgrid">${AVATARS.map(a => `<button class="avpick ${me.user.avatar === a ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div>
+        <button id="avUp" class="mini ghost" style="width:100%;font-size:12px">📷 atau pakai foto dari galeri</button>
+        <input id="avfile" type="file" accept="image/*" style="display:none">
       </div>
       <div class="hqin"><input id="nameIn" placeholder="Nama kamu" maxlength="30" value="${esc(me.user.name)}"><button id="nameBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
@@ -1830,6 +1846,24 @@ function settings() {
     await api('/profile', { method: 'POST', body: { avatar: b.dataset.a } });
     toast(`Avatar: ${b.dataset.a}`);
   });
+  // avatar dari galeri — resize 96px JPEG biar ringan
+  el.querySelector('#avUp').onclick = () => el.querySelector('#avfile').click();
+  el.querySelector('#avfile').onchange = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const img = new Image();
+    img.onload = async () => {
+      const c = document.createElement('canvas'); c.width = c.height = 96;
+      const s = Math.min(img.width, img.height);
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 96, 96);
+      const url = c.toDataURL('image/jpeg', .85);
+      me.user.avatar = url;
+      $('#myAv').innerHTML = `<img src="${url}" alt="">`;
+      el.querySelectorAll('.avpick').forEach(x => x.classList.remove('on'));
+      await api('/profile', { method: 'POST', body: { avatar: url } });
+      toast('Avatar dari galeri dipasang 📷');
+    };
+    img.src = URL.createObjectURL(f);
+  };
   el.querySelector('#nameBtn').onclick = async () => {
     const t = el.querySelector('#nameIn').value.trim(); if (!t) return toast('Nama kosong');
     me.user.name = t;

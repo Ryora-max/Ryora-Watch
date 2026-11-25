@@ -169,7 +169,7 @@ export const store = {
   setStatus: (uid, s) => db.prepare('UPDATE users SET status=? WHERE id=?').run(s, uid),
   setProfile: (uid, { name, avatar, pet_name, bday, dnd_from, dnd_to }) => {
     if (name != null) db.prepare('UPDATE users SET name=? WHERE id=?').run(String(name).trim().slice(0, 30), uid);
-    if (avatar != null) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(String(avatar).slice(0, 8), uid);
+    if (avatar != null) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(String(avatar).slice(0, 200000), uid);
     if (pet_name != null) db.prepare('UPDATE users SET pet_name=? WHERE id=?').run(String(pet_name).trim().slice(0, 30), uid);
     if (bday != null) db.prepare('UPDATE users SET bday=? WHERE id=?').run(String(bday).slice(0, 10), uid);
     if (dnd_from !== undefined) db.prepare('UPDATE users SET dnd_from=? WHERE id=?').run(dnd_from === null ? null : +dnd_from, uid);
