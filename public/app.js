@@ -61,7 +61,7 @@ const mkIcon = (c, letter = '') => L.divIcon({ html: `<div style="width:20px;hei
 // ---------- AUTH ----------
 function authScreen() {
   const urlCode = new URLSearchParams(location.search).get('join');
-  app.innerHTML = `<div class="screen"><div class="logo">🌊</div><h1>Ryora Watch</h1>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
   <div class="card"><input id="name" placeholder="Nama kamu" maxlength="30"><button id="go">Masuk</button>
   <button class="ghost" id="rstBtn" style="margin-top:10px">🔑 Masuk dengan kode cadangan</button>
   <div id="rstBox" style="display:none;margin-top:10px"><input id="rstIn" placeholder="Tempel kode cadanganmu"><button id="rstGo" class="mini">Pulihkan akun</button></div>
@@ -97,7 +97,7 @@ function pairScreen(inviteCode) {
   clearInterval(pairPoll); pairPoll = null;
   if (inviteCode) {
     // Mode menunggu — auto-masuk begitu pasangan pakai kodenya
-    app.innerHTML = `<div class="screen"><div class="logo">🌊</div><h1>Ryora Watch</h1>
+    app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
     <div class="card"><p class="muted">Kode undanganmu — kirim ke pasanganmu:</p>
       <div class="code" id="codeText">${inviteCode}</div>
       <button class="ghost" id="share">📤 Bagikan link undangan</button>
@@ -118,7 +118,7 @@ function pairScreen(inviteCode) {
     }, 3000);
     return;
   }
-  app.innerHTML = `<div class="screen"><div class="logo">🌊</div><h1>Ryora Watch</h1>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
   <p class="muted">Hubungkan dengan pasanganmu</p>
   <div class="card"><button id="create">✨ Buat kode undangan</button>
   <div class="muted">— atau punya kode? —</div>
@@ -635,6 +635,8 @@ function show(tab) {
   try { map?.remove(); } catch {}
   map = null; delete markers.me; delete markers.p; trailLine = null; linkLine = null; midMark = null;
   const v = $('#view');
+  v.classList.remove('vfade'); void v.offsetWidth; v.classList.add('vfade');
+  clearTimeout(v._vt); v._vt = setTimeout(() => v.classList.remove('vfade'), 750);
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
     v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel">${avHtml(me.partner)}<div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div><div class="pinchips" id="pinChips"></div>`;
@@ -1996,5 +1998,13 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 // viewport dinamis — keyboard iOS menyusutkan layar, input chat tetap kelihatan
 const setVH = () => document.documentElement.style.setProperty('--vh', (window.visualViewport?.height || innerHeight) + 'px');
 addEventListener('resize', setVH); window.visualViewport?.addEventListener('resize', setVH); setVH();
+
+// splash — hilang pas app render pertama, fallback 9dtk
+const splashEl = $('#splash');
+if (splashEl) {
+  const hideSplash = () => { if (!splashEl.isConnected) return; splashEl.classList.add('gone'); setTimeout(() => splashEl.remove(), 500); };
+  new MutationObserver((m, o) => { if (app.children.length) { o.disconnect(); hideSplash(); } }).observe(app, { childList: true });
+  setTimeout(hideSplash, 9000);
+}
 
 if (token) boot(); else authScreen();

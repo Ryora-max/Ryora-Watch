@@ -25,6 +25,7 @@ button { font-family:inherit; }
 /* ---------- AUTH ---------- */
 .screen { height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; gap:18px; }
 .logo { font-size:64px; filter:drop-shadow(0 6px 24px #5cc8ff88); animation:float 3s ease-in-out infinite; }
+img.lgimg { width:88px; height:88px; border-radius:24px; }
 @keyframes float { 50% { transform:translateY(-10px) } }
 .screen h1 { font-size:30px; font-weight:700; letter-spacing:.5px; }
 .card { background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--line);
@@ -61,6 +62,16 @@ header .who .muted { font-size:11px; text-align:left; }
 .hmood .mood { padding:6px 6px; font-size:15px; flex-shrink:0; }
 .iconbtn { width:40px;height:40px;min-width:40px;border-radius:13px;background:#ffffff14;border:1px solid var(--line);box-shadow:inset 0 1px 0 #ffffff14;font-size:17px;padding:0; }
 #view { flex:1; position:relative; overflow:hidden; }
+/* transisi ganti tab — konten naik halus berurutan */
+#view.vfade > * { animation:vrise .34s cubic-bezier(.2,.7,.3,1) both; }
+#view.vfade > *:nth-child(2) { animation-delay:.04s }
+#view.vfade > *:nth-child(3) { animation-delay:.08s }
+#view.vfade > *:nth-child(4) { animation-delay:.12s }
+#view.vfade > *:nth-child(5) { animation-delay:.16s }
+#view.vfade > *:nth-child(6) { animation-delay:.2s }
+#view.vfade > *:nth-child(7) { animation-delay:.24s }
+#view.vfade > *:nth-child(n+8) { animation-delay:.28s }
+@keyframes vrise { from { opacity:0; transform:translateY(12px) } }
 #connBar { flex-shrink:0; text-align:center; font-size:11px; font-weight:600; padding:5px 10px; letter-spacing:.2px; }
 #connBar.warn { background:#ff9f4326; color:#ffd9ae; border-bottom:1px solid #ff9f4340; }
 #connBar.ok { background:#2ed57326; color:#a4f0c6; border-bottom:1px solid #2ed57340; }
