@@ -10,7 +10,7 @@ rem pastikan Tailscale funnel aktif (URL tetap, bukan ganti-ganti)
 "C:\Program Files\Tailscale\tailscale.exe" funnel --bg 3000 >nul 2>&1
 echo.
 echo App live 24/7 di:
-echo   https://ryora.tail7a84d7.ts.net
+echo   https://ryora.lyrebird-butterfly.ts.net
 echo.
 echo (selama laptop nyala — data aman di Turso cloud)
 pause
