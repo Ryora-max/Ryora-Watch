@@ -617,7 +617,7 @@ function show(tab) {
   const v = $('#view');
   if (tab === 'home') return renderHome(v);
   if (tab === 'map') {
-    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div>`;
+    v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel"><span class="avatar">${esc(av(me.partner))}</span><div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div><div class="pinchips" id="pinChips"></div>`;
     $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
     $('#pinBtn').onclick = async () => {
       if (!myLoc) return toast('Lokasimu belum ada — nyalakan GPS dulu');
@@ -766,7 +766,7 @@ function show(tab) {
       <button id="vmode" class="mini" title="Mode suara: ngobrol hands-free">🎙️</button>
       <button id="aiToggle" class="mini">${me.user.ai_enabled ? '🔊 ON' : '🔇 OFF'}</button></div>
       <div id="msgs"></div>
-      <div id="chips"><button class="chip">Jadwal hari ini apa?</button><button class="chip">Dia di mana?</button><button class="chip">Cuaca sekarang gimana?</button><button class="chip">Lagi kangen nih</button></div>
+      <div id="chips"><button class="chip">Jadwal hari ini apa?</button><button class="chip">Dia di mana?</button><button class="chip">Cuaca sekarang gimana?</button><button class="chip">Lagi kangen nih</button><button class="chip">💌 Puisi buat dia</button><button class="chip">💡 Ide date weekend</button><button class="chip">🫶 Semangatin aku dong</button><button class="chip">🌙 Ucapan malem buat dia</button></div>
       <div id="chatform"><button id="micBtn">🎤</button><input id="cin" placeholder="Tulis pesan…" maxlength="500"><button id="csend">➤</button></div></div>`;
     if (!chatMsgs.length) chatMsgs.push({ role: 'ai', text: `Hai ${me.user.name}! Aku ${aiName()} ✦ mau ngobrol apa? Tanya jadwal atau lokasi ${pname()} juga bisa.`, ts: Date.now() });
     renderMsgs();
@@ -1300,6 +1300,13 @@ async function loadPins() {
   if (!map) return;
   const pins = await api('/pins'); if (!pins) return;
   pinLayer?.remove(); pinLayer = null;
+  const chipsEl = $('#pinChips');
+  if (chipsEl) {
+    chipsEl.innerHTML = pins.length
+      ? pins.map(p => `<button class="pinchip" data-lat="${p.lat}" data-lng="${p.lng}">📌 ${esc(p.name)}<i>${p.mine ? 'kamu' : esc(p.by_name)}</i></button>`).join('')
+      : `<span class="pinhint">📌 tandai tempat favorit kalian lewat tombol di atas</span>`;
+    chipsEl.querySelectorAll('.pinchip').forEach(c => c.onclick = () => { map.flyTo([+c.dataset.lat, +c.dataset.lng], 16); });
+  }
   if (!pins.length) return;
   pinLayer = L.layerGroup(pins.map(p =>
     L.marker([p.lat, p.lng], { icon: mkIcon('#ff8fb1', '📌') })
