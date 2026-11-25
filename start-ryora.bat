@@ -6,9 +6,11 @@ echo ==========================================
 cd /d C:\Invest
 start "ryora-server" /min cmd /c "npm start"
 timeout /t 4 /nobreak >nul
+rem pastikan Tailscale funnel aktif (URL tetap, bukan ganti-ganti)
+"C:\Program Files\Tailscale\tailscale.exe" funnel --bg 3000 >nul 2>&1
 echo.
-echo Server jalan di http://localhost:3000
+echo App live 24/7 di:
+echo   https://desktop-dfs1gsu.tail7a84d7.ts.net
 echo.
-echo Bikin tunnel HTTPS (URL muncul di bawah)...
-cloudflared.exe tunnel --url http://localhost:3000
+echo (selama laptop nyala — data aman di Turso cloud)
 pause

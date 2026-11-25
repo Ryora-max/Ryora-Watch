@@ -18,3 +18,4 @@ data/tts-cache/
 .pptr*/
 shot_*.png
 ryora-server.log
+tools/

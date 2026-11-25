@@ -1,19 +1,20 @@
 import Database from 'libsql';
 import { randomBytes, randomInt } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 
 mkdirSync('data', { recursive: true });
 // Embedded replica: SQLite lokal yang auto-sync ke Turso — data selamat walau server restart/redeploy.
 // Tanpa TURSO_URL → file lokal biasa (dev).
-const db = new Database('data/couple.db', process.env.TURSO_URL ? {
+const useTurso = !!process.env.TURSO_URL;
+const db = new Database(useTurso ? 'data/replica.db' : 'data/couple.db', useTurso ? {
   syncUrl: process.env.TURSO_URL,
   authToken: process.env.TURSO_TOKEN || '',
   syncInterval: 60,
 } : {});
-if (process.env.TURSO_URL) {
+if (useTurso) {
   try { await db.sync(); console.log('[db] sync awal Turso OK'); } catch (e) { console.log('[db] sync awal gagal:', e.message); }
-  setInterval(() => db.sync().catch(e => console.log('[db] sync:', e.message)), 60000);
-  const flush = () => db.sync().catch(() => {}).finally(() => process.exit(0));
+  setInterval(async () => { try { await db.sync(); } catch (e) { console.log('[db] sync:', e.message); } }, 60000);
+  const flush = async () => { try { await db.sync(); } catch {} process.exit(0); };
   process.on('SIGTERM', flush); process.on('SIGINT', flush);
 }
 
@@ -121,6 +122,30 @@ try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
 try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 db.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)');
+
+// Migrasi sekali: impor semua tabel dari couple.db lama (node:sqlite) ke replica Turso.
+// ATTACH tidak didukung di embedded replica → baca lewat koneksi libsql biasa.
+if (useTurso && existsSync('data/couple.db') && !existsSync('data/.migrated')) {
+  try {
+    const old = new Database('data/couple.db');
+    const tables = old.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t => t.name);
+    let moved = 0;
+    for (const t of tables) {
+      try {
+        const cols = old.prepare(`PRAGMA table_info("${t}")`).all().map(c => c.name);
+        const rows = old.prepare(`SELECT * FROM "${t}"`).all();
+        if (!cols.length || !rows.length) continue;
+        const stmt = db.prepare(`INSERT OR IGNORE INTO "${t}" (${cols.map(c => `"${c}"`).join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
+        for (const r of rows) stmt.run(...cols.map(c => r[c]));
+        moved += rows.length;
+      } catch (e) { console.log(`[db] tabel ${t} skip:`, e.message); }
+    }
+    old.close();
+    writeFileSync('data/.migrated', new Date().toISOString());
+    console.log(`[db] migrasi OK — ${moved} baris dari ${tables.length} tabel`);
+    try { await db.sync(); } catch (e) { console.log('[db] sync migrasi:', e.message); }
+  } catch (e) { console.log('[db] migrasi gagal:', e.message); }
+}
 
 const id = () => randomBytes(8).toString('hex');
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ';
