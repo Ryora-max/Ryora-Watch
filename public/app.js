@@ -1210,6 +1210,52 @@ const avHtml = (u, cls = '') => u?.avatar?.startsWith('data:')
 const avMarker = (u) => u?.avatar?.startsWith('data:')
   ? `<img src="${u.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`
   : esc(av(u));
+
+// ---------- CROP AVATAR — geser & zoom sampai pas ----------
+function cropAvatar(img, settingsEl) {
+  const BOX = 260;
+  const ov = document.createElement('div');
+  ov.className = 'cropov';
+  ov.innerHTML = `<div class="wcard cropcard">
+    <b>Pasang foto profil</b>
+    <div class="hsub">geser & zoom sampai pas di lingkaran</div>
+    <div class="cropbox"><img src="${img.src}"></div>
+    <input type="range" min="1" max="3" step="0.01" value="1" id="cropZ" style="width:100%">
+    <div class="hqin"><button id="cropNo" class="mini ghost">Batal</button><button id="cropOk" class="mini" style="flex:1">✂️ Pasang</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const box = ov.querySelector('.cropbox'), im = ov.querySelector('.cropbox img'), z = ov.querySelector('#cropZ');
+  const base = Math.max(BOX / img.width, BOX / img.height);
+  let scale = base, x = (BOX - img.width * scale) / 2, y = (BOX - img.height * scale) / 2;
+  const draw = () => {
+    x = Math.min(0, Math.max(BOX - img.width * scale, x));
+    y = Math.min(0, Math.max(BOX - img.height * scale, y));
+    im.style.transform = `translate(${x}px,${y}px) scale(${scale})`;
+  };
+  draw();
+  z.oninput = () => {
+    const ns = base * (+z.value);
+    x -= (img.width * (ns - scale)) / 2; y -= (img.height * (ns - scale)) / 2;
+    scale = ns; draw();
+  };
+  let drag = null;
+  box.onpointerdown = e => { drag = { sx: e.clientX - x, sy: e.clientY - y }; box.setPointerCapture(e.pointerId); };
+  box.onpointermove = e => { if (drag) { x = e.clientX - drag.sx; y = e.clientY - drag.sy; draw(); } };
+  box.onpointerup = box.onpointercancel = () => drag = null;
+  ov.querySelector('#cropNo').onclick = () => ov.remove();
+  ov.querySelector('#cropOk').onclick = async () => {
+    const c = document.createElement('canvas'); c.width = c.height = 96;
+    const s = BOX / scale;
+    c.getContext('2d').drawImage(img, -x / scale, -y / scale, s, s, 0, 0, 96, 96);
+    const url = c.toDataURL('image/jpeg', .85);
+    me.user.avatar = url;
+    $('#myAv').innerHTML = `<img src="${url}" alt="">`;
+    settingsEl.querySelectorAll('.avpick').forEach(b => b.classList.remove('on'));
+    await api('/profile', { method: 'POST', body: { avatar: url } });
+    ov.remove();
+    toast('Avatar dari galeri dipasang 📷');
+  };
+}
 const isQuiet = () => { // jam tenang — ping & getar ditahan
   const f = me?.user?.dnd_from, t = me?.user?.dnd_to;
   if (f == null || t == null) return false;
@@ -1350,7 +1396,12 @@ async function loadPins() {
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  // tiles custom — dark CARTO untuk tema gelap, voyager untuk tema terang (bukan OSM default)
+  const darkTheme = ['', 'dark', 'lavender', 'forest'].includes(document.documentElement.dataset.theme || '');
+  L.tileLayer(darkTheme
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    { maxZoom: 19, attribution: '© OpenStreetMap · © CARTO' }).addTo(map);
   if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', avMarker(me.user)) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
   api('/partner/location').then(d => { if (d?.lat != null) { partnerLoc = d; lastSync = Date.now(); updatePartnerMarkers(d); if (d.trail?.length) { trailLine?.remove(); trailLine = L.polyline(d.trail.map(t => [t.lat, t.lng]), { color: '#5cc8ff', weight: 3, opacity: .5, dashArray: '6 8' }).addTo(map); } } });
   loadPins();
@@ -1800,9 +1851,9 @@ function settings() {
       <div class="avrow">
         ${avHtml(me.user, 'big').replace('class="avatar', 'id="myAv" class="avatar')}
         <div class="avgrid">${AVATARS.map(a => `<button class="avpick ${me.user.avatar === a ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div>
-        <button id="avUp" class="mini ghost" style="width:100%;font-size:12px">📷 atau pakai foto dari galeri</button>
-        <input id="avfile" type="file" accept="image/*" style="display:none">
       </div>
+      <button id="avUp" class="mini ghost" style="width:100%;font-size:12px">📷 atau pakai foto dari galeri</button>
+      <input id="avfile" type="file" accept="image/*" style="display:none">
       <div class="hqin"><input id="nameIn" placeholder="Nama kamu" maxlength="30" value="${esc(me.user.name)}"><button id="nameBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="bdayIn" type="date" value="${me.user.bday || ''}"><button id="bdayBtn" class="mini">🎂</button></div>
@@ -1846,22 +1897,12 @@ function settings() {
     await api('/profile', { method: 'POST', body: { avatar: b.dataset.a } });
     toast(`Avatar: ${b.dataset.a}`);
   });
-  // avatar dari galeri — resize 96px JPEG biar ringan
+  // avatar dari galeri — buka crop editor dulu, geser + zoom sampai pas
   el.querySelector('#avUp').onclick = () => el.querySelector('#avfile').click();
-  el.querySelector('#avfile').onchange = async (e) => {
+  el.querySelector('#avfile').onchange = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     const img = new Image();
-    img.onload = async () => {
-      const c = document.createElement('canvas'); c.width = c.height = 96;
-      const s = Math.min(img.width, img.height);
-      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 96, 96);
-      const url = c.toDataURL('image/jpeg', .85);
-      me.user.avatar = url;
-      $('#myAv').innerHTML = `<img src="${url}" alt="">`;
-      el.querySelectorAll('.avpick').forEach(x => x.classList.remove('on'));
-      await api('/profile', { method: 'POST', body: { avatar: url } });
-      toast('Avatar dari galeri dipasang 📷');
-    };
+    img.onload = () => cropAvatar(img, el);
     img.src = URL.createObjectURL(f);
   };
   el.querySelector('#nameBtn').onclick = async () => {
