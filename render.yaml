@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: couple-watch
+    name: ryora-watch
     env: node
     plan: free
     buildCommand: npm install
@@ -8,5 +8,7 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-3.1-flash-lite-preview
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_TOKEN
+        sync: false

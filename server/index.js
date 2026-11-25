@@ -9,13 +9,13 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 const webpush = createRequire(import.meta.url)('web-push');
 
-// --- Web Push: VAPID keys persist di data/vapid.json (generate sekali) ---
+// --- Web Push: VAPID keys persist di DB (ikut ke-sync Turso — tidak ilang saat redeploy) ---
 let VAPID = null;
 try {
-  fs.mkdirSync('data', { recursive: true });
-  const f = 'data/vapid.json';
-  VAPID = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f)) : webpush.generateVAPIDKeys();
-  if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(VAPID));
+  VAPID = process.env.VAPID_PUBLIC && process.env.VAPID_PRIVATE
+    ? { publicKey: process.env.VAPID_PUBLIC, privateKey: process.env.VAPID_PRIVATE }
+    : store.kvGet('vapid') ? JSON.parse(store.kvGet('vapid')) : null;
+  if (!VAPID) { VAPID = webpush.generateVAPIDKeys(); store.kvSet('vapid', JSON.stringify(VAPID)); }
   webpush.setVapidDetails('mailto:ryora@local', VAPID.publicKey, VAPID.privateKey);
 } catch (e) { console.log('[push] VAPID gagal:', e.message); }
 const sendPush = (userId, payload) => {

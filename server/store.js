@@ -1,9 +1,21 @@
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'libsql';
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 
 mkdirSync('data', { recursive: true });
-const db = new DatabaseSync('data/couple.db');
+// Embedded replica: SQLite lokal yang auto-sync ke Turso — data selamat walau server restart/redeploy.
+// Tanpa TURSO_URL → file lokal biasa (dev).
+const db = new Database('data/couple.db', process.env.TURSO_URL ? {
+  syncUrl: process.env.TURSO_URL,
+  authToken: process.env.TURSO_TOKEN || '',
+  syncInterval: 60,
+} : {});
+if (process.env.TURSO_URL) {
+  try { await db.sync(); console.log('[db] sync awal Turso OK'); } catch (e) { console.log('[db] sync awal gagal:', e.message); }
+  setInterval(() => db.sync().catch(e => console.log('[db] sync:', e.message)), 60000);
+  const flush = () => db.sync().catch(() => {}).finally(() => process.exit(0));
+  process.on('SIGTERM', flush); process.on('SIGINT', flush);
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -108,12 +120,15 @@ try { db.exec('ALTER TABLE users ADD COLUMN dnd_from INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
 try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
+db.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)');
 
 const id = () => randomBytes(8).toString('hex');
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 const code = () => Array.from({ length: 3 }, () => ALPHA[randomInt(ALPHA.length)]).join('') + '-' + Array.from({ length: 3 }, () => ALPHA[randomInt(ALPHA.length)]).join('');
 
 export const store = {
+  kvGet: (k) => db.prepare('SELECT v FROM kv WHERE k=?').get(k)?.v,
+  kvSet: (k, v) => db.prepare('INSERT INTO kv (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, v),
   createUser: (name) => {
     const u = { id: id(), name, token: randomBytes(24).toString('hex'), ts: Date.now() };
     db.prepare('INSERT INTO users (id,name,token,created_at) VALUES (?,?,?,?)').run(u.id, name, u.token, u.ts);

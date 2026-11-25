@@ -51,11 +51,16 @@ start-ryora.bat        # server + cloudflared tunnel — copy URL https-nya
 
 ## Deploy permanen
 
-`render.yaml` siap — render.com → Blueprint → pilih repo → isi `GEMINI_API_KEY`. (Free tier Render sekarang minta kartu; alternatif: Koyeb.)
+**Koyeb + Turso — gratis, tanpa kartu, data persisten.** Panduan lengkap: [`docs/DEPLOY.md`](docs/DEPLOY.md)
+
+Singkat: Turso (login GitHub) → `turso db create ryora` + token → Koyeb (login GitHub) → deploy repo → isi env `GEMINI_API_KEY`, `TURSO_URL`, `TURSO_TOKEN`. DB SQLite lokal auto-sync ke Turso jadi kenangan/surat/pair selamat walau redeploy.
+
+`render.yaml` juga tersedia kalau mau pakai Render (butuh kartu untuk free tier sekarang).
 
 ## Catatan teknis
 
-- `server/store.js` — SQLite via `node:sqlite` (DatabaseSync)
+- `server/store.js` — SQLite via `libsql` (embedded replica: lokal + auto-sync Turso; tanpa `TURSO_URL` = file lokal biasa)
+- VAPID push keys tersimpan di tabel `kv` — ikut ke-sync, nggak ilang saat redeploy
 - `public/sw.js` — network-first + Web Push handler
 - `.devin/` skill config — n/a; repo ini murni Node
 - Widget Android homescreen butuh build APK (scaffolding di `android/`, perlu Android Studio)

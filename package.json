@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "express": "^4.21.2",
+    "libsql": "^0.5.29",
     "msedge-tts": "^2.1.1",
     "socket.io": "^4.8.1",
     "web-push": "^4.0.0"
@@ -19,5 +20,8 @@
     "@capacitor/cli": "^8.6.2",
     "@capacitor/core": "^8.6.2",
     "puppeteer": "^25.18.1"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
