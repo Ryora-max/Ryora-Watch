@@ -1396,19 +1396,8 @@ async function loadPins() {
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
-  // tiles custom — CARTO voyager (soft pastel, bukan OSM default) di semua tema
-  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    { maxZoom: 19, attribution: '© OpenStreetMap · © CARTO' });
-  let tilesLoaded = 0;
-  carto.on('tileload', () => tilesLoaded++);
-  carto.addTo(map);
-  // fallback: kalau Carto keblok di jaringan pengguna → balik ke OSM biar peta tetap keliatan
-  setTimeout(() => {
-    if (tilesLoaded === 0 && map) {
-      carto.remove();
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    }
-  }, 4000);
+  // OSM tiles + tint custom via CSS (look "buatan kita" tanpa API key — CARTO sekarang butuh key)
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', avMarker(me.user)) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }
   api('/partner/location').then(d => { if (d?.lat != null) { partnerLoc = d; lastSync = Date.now(); updatePartnerMarkers(d); if (d.trail?.length) { trailLine?.remove(); trailLine = L.polyline(d.trail.map(t => [t.lat, t.lng]), { color: '#5cc8ff', weight: 3, opacity: .5, dashArray: '6 8' }).addTo(map); } } });
   loadPins();
