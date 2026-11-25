@@ -170,6 +170,24 @@ function setupScreen() {
   $('#ainame').focus();
 }
 
+// ---------- STATUS KONEKSI — transparan, selalu kelihatan ----------
+let connT;
+function conn(state) {
+  const b = $('#connBar'); if (!b) return;
+  clearTimeout(connT);
+  if (state === 'ok') {
+    b.className = 'ok'; b.textContent = '✅ Tersambung'; b.style.display = '';
+    connT = setTimeout(() => { b.style.display = 'none'; }, 1800);
+    const d = $('#dot'); if (d) d.textContent = partnerOnline ? '🟢' : '⚪';
+  } else {
+    b.className = 'warn'; b.style.display = '';
+    b.textContent = state === 'net' ? '📴 Kamu offline — cek internet' : '🔄 Koneksi ke server putus — menyambung ulang…';
+    const d = $('#dot'); if (d) d.textContent = '🟡';
+  }
+}
+window.addEventListener('offline', () => conn('net'));
+window.addEventListener('online', () => conn('off'));
+
 async function mainUI() {
   app.innerHTML = `
   <header>
@@ -179,6 +197,7 @@ async function mainUI() {
     </div>
     <div class="hdr-right"><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
   </header>
+  <div id="connBar" style="display:none"></div>
   <div id="view"></div>
   <nav>
     <button data-t="home" class="on">🏠<span>Home</span></button>
@@ -253,8 +272,9 @@ function banner(t) {
 function connectSocket() {
   socket?.disconnect();
   socket = io({ auth: { token } });
-  socket.on('connect', () => { if (myLoc) socket.emit('location:update', myLoc); });
-  socket.on('disconnect', () => toast('Koneksi terputus, menyambung ulang…'));
+  socket.on('connect', () => { if (myLoc) socket.emit('location:update', myLoc); conn('ok'); });
+  socket.on('disconnect', () => conn('off'));
+  socket.on('connect_error', () => conn('off'));
   socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; updateSeen(); });
   socket.on('partner:battery', ({ level }) => { $('#pbatt').textContent = ` ${level}%`; });
   socket.on('schedules:changed', async () => {
@@ -1340,7 +1360,8 @@ async function loadSchedules() {
       <div class="itembody"><div>${sicon(s.title)} ${esc(s.title)}</div><span class="chip ${active ? 'live' : ''}">${active ? '🔥 berlangsung sekarang' : '⏳ ' + until(t)}</span></div>
       <button class="del" data-id="${s.id}" title="Hapus">🗑</button></div>`;
   }
-  $('#slist').innerHTML = html || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
+  const sl = $('#slist'); if (!sl) return;
+  sl.innerHTML = html || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => { await api('/schedules/' + b.dataset.id, { method: 'DELETE' }); schedCache = await api('/schedules'); loadSchedules(); });
 }
 

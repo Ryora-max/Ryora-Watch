@@ -50,6 +50,9 @@ header .who .muted { font-size:11px; text-align:left; }
 .avatar { width:36px;height:36px;border-radius:50%;background:var(--grad);display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0; box-shadow:0 4px 14px #5cc8ff44; }
 .iconbtn { width:40px;height:40px;min-width:40px;border-radius:13px;background:#ffffff14;border:1px solid var(--line);box-shadow:inset 0 1px 0 #ffffff14;font-size:17px;padding:0; }
 #view { flex:1; position:relative; overflow:hidden; }
+#connBar { flex-shrink:0; text-align:center; font-size:11px; font-weight:600; padding:5px 10px; letter-spacing:.2px; }
+#connBar.warn { background:#ff9f4326; color:#ffd9ae; border-bottom:1px solid #ff9f4340; }
+#connBar.ok { background:#2ed57326; color:#a4f0c6; border-bottom:1px solid #2ed57340; }
 nav { display:flex; background:var(--card); backdrop-filter:blur(14px); border-top:1px solid var(--line); padding:8px 10px calc(8px + env(safe-area-inset-bottom)); gap:6px; }
 nav button { flex:1; background:transparent; color:var(--dim); padding:7px 4px 6px; font-size:19px; border-radius:14px; box-shadow:none; transition:all .2s; display:flex; flex-direction:column; align-items:center; gap:2px; }
 nav button span { font-size:10px; font-weight:600; letter-spacing:.3px; }
@@ -204,6 +207,8 @@ input[type=range] { accent-color:var(--accent); padding:8px 0; }
   nav { padding-left:4px; padding-right:4px; gap:3px; }
   nav button { font-size:17px; }
   .home, .list, .misspage { padding-left:10px; padding-right:10px; }
+  .statgrid { grid-template-columns:repeat(2,1fr); }
+  .playgrid { grid-template-columns:1fr; }
 }
 
 /* ---------- HOME DASHBOARD ---------- */
@@ -346,7 +351,7 @@ select option { background:#12233f; color:#f2f8ff; }
 [data-theme=sakura] .code,[data-theme=lavender] .code,[data-theme=forest] .code { color:var(--accent); }
 
 /* --- theme swatches --- */
-.themrow { display:flex; gap:8px; }
+.themrow { display:flex; gap:8px; flex-wrap:wrap; }
 .tswatch { flex:1; padding:10px 4px; background:var(--card); border:1px solid var(--line); box-shadow:none; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text); }
 .tswatch span { font-size:18px; }
 .tswatch i { font-size:10px; font-style:normal; color:var(--dim); }
