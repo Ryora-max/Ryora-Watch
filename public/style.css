@@ -680,3 +680,52 @@ button.ghost { border-color:var(--line); }
 .home { gap:11px; }
 .misspage { gap:18px; }
 .hchips { gap:7px; }
+
+/* ===== POLISH — transisi & animasi di semua elemen ===== */
+.mini, .sbtn, .randbtn, .playbox, .hchip, .expchip, .statcell, .suit, .tod, .mood, .tswatch, .sendgrid .sbtn, .iconbtn, .geotgl { transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease; }
+.mini:active, .sbtn:active, .randbtn:active, .hchip:active, .expchip:active, .statcell:active, .suit:active, .tod:active, .mood:active, .tswatch:active, .iconbtn:active, .geotgl:active { transform: scale(.93); }
+.playbox { transition: transform .2s ease, box-shadow .25s ease; }
+.hcard { transition: transform .2s ease; }
+
+/* modal masuk — backdrop fade + kartu pop */
+.wmodal { animation: mfade .22s ease; }
+.wmodal .card, .wmodal .wcard, .cropcard { animation: mpop .32s cubic-bezier(.2,1.45,.42,1); }
+@keyframes mfade { from { opacity:0 } }
+@keyframes mpop { from { opacity:0; transform:scale(.86) translateY(24px) } }
+
+/* baris muncul berurutan — riwayat, feed, chat */
+.exprow, .feedrow, .cpmsg, .cmsg, .mrow, .srow { animation: rowin .28s ease backwards; }
+.exprow:nth-child(2), .feedrow:nth-child(2), .srow:nth-child(2) { animation-delay:.04s }
+.exprow:nth-child(3), .feedrow:nth-child(3), .srow:nth-child(3) { animation-delay:.08s }
+.exprow:nth-child(4), .feedrow:nth-child(4), .srow:nth-child(4) { animation-delay:.12s }
+.exprow:nth-child(n+5), .feedrow:nth-child(n+5), .srow:nth-child(n+5) { animation-delay:.15s }
+@keyframes rowin { from { opacity:0; transform:translateX(-10px) } }
+
+/* pion ular tangga — bounce tiap pindah */
+.ultatok { animation: tokpop .45s cubic-bezier(.3,1.7,.5,1); }
+@keyframes tokpop { from { transform:scale(.15) } }
+.ultacell { transition: background .3s ease; }
+
+/* input fokus — glow accent */
+input:focus { outline:none; border-color:var(--accent) !important; box-shadow:0 0 0 3px #5cc8ff26; transition:box-shadow .2s ease, border-color .2s ease; }
+
+/* mood terpilih — pop + warna */
+.mood { transition: transform .15s ease, background .2s, border-color .2s; }
+.mood.on { animation: tokpop .3s ease; }
+
+/* progress bar halus */
+.lgbar i { transition: width .6s cubic-bezier(.3,1,.4,1); }
+
+/* chip & kartu hover mikro (desktop / tap) */
+@media (hover:hover) {
+  .hcard:hover { transform:translateY(-1px); }
+  .playbox:hover { transform:translateY(-2px); box-shadow:0 6px 22px rgba(0,0,0,.28); }
+  .randbtn:hover, .sbtn:hover { filter:brightness(1.12); }
+}
+
+/* label seksi ada aksen garis kiri biar nggak polos */
+.hlabel, .msect>b { position:relative; padding-left:9px; }
+.hlabel::before, .msect>b::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:11px; border-radius:3px; background:linear-gradient(180deg,var(--accent),var(--accent2)); }
+
+/* nav tombol aktif — transisi halus antar tab */
+nav button { transition: all .25s ease; }

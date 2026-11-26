@@ -1433,8 +1433,8 @@ function chatModal() {
 
 // ---------- ULAR TANGGA — race ke 100, state di server ----------
 let ultaState = null;
-const ULTA_LAD = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
-const ULTA_SNK = { 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 };
+const ULTA_LAD = { 3: 39, 4: 14, 9: 31, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 80: 100 };
+const ULTA_SNK = { 16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 78 };
 function ultaOpen() {
   if (!ultaState) return;
   let el = $('.ultamodal');

@@ -863,8 +863,8 @@ io.use((socket, next) => {
 
 const tttGames = new Map(), tttInvites = new Map();
 const ulta = new Map(); // pairId -> {pos:{uid:cell}, turn, order:[a,b], win}
-const ULTA_LADDER = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
-const ULTA_SNAKE = { 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 };
+const ULTA_LADDER = { 3: 39, 4: 14, 9: 31, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 80: 100 };
+const ULTA_SNAKE = { 16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 78 };
 const tttWinner = (b) => {
   for (const [a, c, d] of [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]])
     if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
