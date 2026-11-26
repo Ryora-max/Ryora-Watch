@@ -346,22 +346,31 @@ app.delete('/api/habit/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-// --- dompet kalian — catat pemasukan & pengeluaran bareng ---
+// --- dompet kalian — uang harian (masuk/keluar pribadi) + tabungan bersama ---
 app.get('/api/expenses', auth, (req, res) => {
-  if (!req.user.pair_id) return res.json({ list: [], sum: {} });
+  if (!req.user.pair_id) return res.json({ list: [], daily: {}, saving: {} });
   const now = new Date();
   const fromTs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const list = store.exps(req.user.pair_id, fromTs).map(e => ({ ...e, mine: e.user_id === req.user.id }));
-  const sum = { in: 0, out: 0, meIn: 0, meOut: 0, themIn: 0, themOut: 0 };
+  // harian: pemasukan/pengeluaran harian per orang; saving: pot nabung bersama (akumulatif, bukan per-bulan)
+  const daily = { in: 0, out: 0, meIn: 0, meOut: 0, themIn: 0, themOut: 0 };
   for (const e of list) {
-    sum[e.kind] = (sum[e.kind] || 0) + e.amount;
-    const k = e.user_id === req.user.id ? 'me' : 'them';
-    sum[k + (e.kind === 'in' ? 'In' : 'Out')] += e.amount;
+    if ((e.pot || 'daily') === 'saving') continue;
+    daily[e.kind] += e.amount;
+    const k = e.mine ? 'me' : 'them';
+    daily[k + (e.kind === 'in' ? 'In' : 'Out')] += e.amount;
   }
-  sum.balance = (sum.in || 0) - (sum.out || 0);
+  daily.balance = daily.in - daily.out;
+  const slist = store.exps(req.user.pair_id, 0).filter(e => (e.pot || 'daily') === 'saving').map(e => ({ ...e, mine: e.user_id === req.user.id }));
+  const saving = { balance: 0, me: 0, them: 0 };
+  for (const e of slist) {
+    const v = e.kind === 'in' ? e.amount : -e.amount;
+    saving.balance += v;
+    saving[e.mine ? 'me' : 'them'] += e.kind === 'in' ? e.amount : 0;
+  }
   let goal = null;
   try { goal = JSON.parse(store.kvGet('goal:' + req.user.pair_id) || 'null'); } catch {}
-  res.json({ list: list.slice(0, 60), sum, goal });
+  res.json({ list: list.filter(e => (e.pot || 'daily') === 'daily').slice(0, 60), slist: slist.slice(0, 60), daily, saving, goal });
 });
 // target nabung bareng
 app.post('/api/goal', auth, (req, res) => {
@@ -381,13 +390,14 @@ app.delete('/api/goal', auth, (req, res) => {
 });
 app.post('/api/expense', auth, (req, res) => {
   const kind = req.body?.kind === 'in' ? 'in' : 'out';
+  const pot = req.body?.pot === 'saving' ? 'saving' : 'daily';
   const amount = Math.round(Math.abs(+req.body?.amount || 0));
   const note = String(req.body?.note || '').trim().slice(0, 80);
   if (!req.user.pair_id || !amount || amount > 1e9) return res.status(400).json({ error: 'invalid' });
-  store.addExp(req.user.pair_id, req.user.id, kind, amount, note);
+  store.addExp(req.user.pair_id, req.user.id, kind, amount, note, pot);
   io.to(req.user.pair_id).emit('home:changed');
-  const lbl = kind === 'out' ? 'pengeluaran' : 'pemasukan';
-  pushPartner(req.user, { title: '💰 LYNX LIFE', body: `${req.user.name} catat ${lbl} Rp ${amount.toLocaleString('id-ID')}${note ? ` — ${note}` : ''}`, tag: 'exp' });
+  const lbl = pot === 'saving' ? (kind === 'in' ? 'nabung ke tabungan bersama' : 'ambil dari tabungan bersama') : (kind === 'out' ? 'pengeluaran' : 'pemasukan');
+  pushPartner(req.user, { title: (pot === 'saving' ? '🏦' : '💰') + ' LYNX LIFE', body: `${req.user.name} ${lbl} Rp ${amount.toLocaleString('id-ID')}${note ? ` — ${note}` : ''}`, tag: 'exp' });
   res.json({ ok: true });
 });
 app.delete('/api/expense/:id', auth, (req, res) => {
@@ -852,6 +862,9 @@ io.use((socket, next) => {
 });
 
 const tttGames = new Map(), tttInvites = new Map();
+const ulta = new Map(); // pairId -> {pos:{uid:cell}, turn, order:[a,b], win}
+const ULTA_LADDER = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
+const ULTA_SNAKE = { 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 };
 const tttWinner = (b) => {
   for (const [a, c, d] of [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]])
     if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
@@ -957,6 +970,30 @@ io.on('connection', (socket) => {
     io.to(u.pair_id).emit('tod:card', { mode: mode === 'dare' ? 'dare' : 'truth', text, from: u.name });
   });
 
+
+  // --- ular tangga bareng — papan 10x10, server pegang state, sinkron dua HP ---
+  socket.on('ulta:start', () => {
+    if (!u.pair_id) return;
+    const p = store.partnerOf(u); if (!p) return;
+    const g = { pos: { [u.id]: 1, [p.id]: 1 }, turn: u.id, order: [u.id, p.id], win: 0 };
+    ulta.set(u.pair_id, g);
+    io.to(u.pair_id).emit('ulta:state', { pos: g.pos, turn: g.turn, win: 0, order: g.order });
+    pushPartner(u, { title: '🐍 LYNX LIFE', body: `${u.name} ngajak main Ular Tangga — gas!`, tag: 'ulta' });
+  });
+  socket.on('ulta:roll', () => {
+    if (!u.pair_id) return;
+    const g = ulta.get(u.pair_id); if (!g || g.win || g.turn !== u.id) return;
+    const dice = 1 + Math.floor(Math.random() * 6);
+    let pos = g.pos[u.id] + dice;
+    if (pos > 100) pos = 100 - (pos - 100); // mantul balik kalau kelebihan
+    let msg = '';
+    if (ULTA_SNAKE[pos]) { msg = `kena 🐍 di ${pos} → turun ke ${ULTA_SNAKE[pos]}`; pos = ULTA_SNAKE[pos]; }
+    else if (ULTA_LADDER[pos]) { msg = `naik 🪜 di ${pos} → ke ${ULTA_LADDER[pos]}`; pos = ULTA_LADDER[pos]; }
+    g.pos[u.id] = pos;
+    if (pos === 100) { g.win = u.id; } else { g.turn = g.order.find(x => x !== u.id); }
+    io.to(u.pair_id).emit('ulta:state', { pos: g.pos, turn: g.turn, win: g.win, order: g.order, last: { name: u.name, dice, msg } });
+  });
+  socket.on('ulta:end', () => { if (!u.pair_id) return; ulta.delete(u.pair_id); io.to(u.pair_id).emit('ulta:state', { end: true }); });
 
   // --- acak bareng — server yang ngacak, dua HP lihat hasil sama (nggak bisa curang) ---
   socket.on('rand:go', ({ tool, options }) => {

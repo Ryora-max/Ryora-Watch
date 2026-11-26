@@ -37,12 +37,29 @@ const distM = () => {
   return L.latLng(myLoc.lat, myLoc.lng).distanceTo([partnerLoc.lat, partnerLoc.lng]);
 };
 const distText = () => {
+
   const m = distM();
   if (m == null) return '';
   const km = m / 1000;
   return km < 1 ? Math.round(km * 1000) + ' m' : km.toFixed(1) + ' km';
 };
 const together = () => { const m = distM(); return m != null && m < 150; };
+// koordinat → nama daerah (Nominatim, gratis tanpa key; cache ~200m biar hemat request)
+const geoNameCache = (() => { try { return JSON.parse(localStorage.cw_geon || '{}'); } catch { return {}; } })();
+async function placeName(lat, lng) {
+  const key = lat.toFixed(3) + ',' + lng.toFixed(3);
+  if (geoNameCache[key]) return geoNameCache[key];
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=16&format=jsonv2&accept-language=id`);
+    const d = await r.json();
+    const a = d.address || {};
+    const area = a.village || a.neighbourhood || a.residential || a.quarter || a.hamlet;
+    const city = a.suburb || a.city_district || a.district || a.town || a.city || a.county;
+    const name = [area, city].filter(Boolean).join(', ') || (d.display_name || '').split(',').slice(0, 2).join(',').trim() || null;
+    if (name) { geoNameCache[key] = name; try { localStorage.cw_geon = JSON.stringify(geoNameCache); } catch {} }
+    return name;
+  } catch { return null; }
+}
 const SICON = [['makan', '🍜'], ['kuliner', '🍜'], ['jajan', '🍜'], ['date', '💑'], ['jalan', '💑'], ['nonton', '🎬'], ['film', '🎬'], ['drakor', '📺'], ['belajar', '📚'], ['tugas', '📚'], ['kuliah', '📚'], ['sekolah', '📚'], ['ujian', '📝'], ['kerja', '💼'], ['rapat', '💼'], ['gym', '🏋️'], ['olahraga', '🏃'], ['lari', '🏃'], ['dokter', '💊'], ['sakit', '💊'], ['tidur', '😴'], ['belanja', '🛒'], ['game', '🎮'], ['main', '🎮'], ['gereja', '⛪'], ['ibadah', '🙏'], ['ketemu', '📍'], ['ultah', '🎂'], ['ulang tahun', '🎂'], ['libur', '🏖️'], ['travel', '✈️']];
 const sicon = (t) => { const l = (t || '').toLowerCase(); return (SICON.find(([k]) => l.includes(k)) || [0, '📌'])[1]; };
 const updateSeen = () => {
@@ -462,6 +479,13 @@ function connectSocket() {
   });
   socket.on('guess:end', () => guessMode(null));
   socket.on('pins:changed', () => { if (map) loadPins(); });
+  socket.on('ulta:state', (s) => {
+    if (s.end) { ultaState = null; $('.ultamodal')?.remove(); toast('🐍 Ular tangga ditutup'); return; }
+    const fresh = !ultaState && s.turn !== me.user.id;
+    ultaState = s;
+    if (fresh) { ding(); navigator.vibrate?.(150); toast('🐍 Dia ngajak main Ular Tangga!'); }
+    ultaOpen();
+  });
   socket.on('rand:result', ({ result, from, label }) => {
     const el = document.createElement('div'); el.className = 'nobarOv';
     el.innerHTML = `<div class="nobx"><b>🎲 ${esc(from)} ${esc(label || 'ngacak')}</b><span class="nbn" style="font-size:44px">${esc(result)}</span><i>hasil sama di dua HP — fair!</i></div>`;
@@ -633,8 +657,9 @@ function updatePartnerMarkers(l) {
   fitBoth();
   const lb = $('#locpanel');
   if (lb) lb.innerHTML = `${avHtml(me.partner)}
-    <div class="locinfo"><b>${esc(pname())}</b><span>${distText() ? distText() + ' · ' : ''}${agoText(l.ts)}</span></div>
+    <div class="locinfo"><b>${esc(pname())}</b><span id="plocname" class="locname">…</span><span>${distText() ? distText() + ' · ' : ''}${agoText(l.ts)}</span></div>
     <button id="locCenter" class="iconbtn">◎</button>`;
+  placeName(l.lat, l.lng).then(n => { const e = $('#plocname'); if (e && n) e.textContent = '📍 ' + n; else if (e) e.textContent = ''; });
   const lc = $('#locCenter');
   if (lc) lc.onclick = () => map?.fitBounds(L.latLngBounds(markers.me?.getLatLng() || [l.lat, l.lng], markers.p?.getLatLng() || [l.lat, l.lng]).pad(0.3));
 }
@@ -671,61 +696,79 @@ function show(tab) {
     initMap(); renderGeoCard(); return;
   }
   if (tab === 'uang') {
+    const bulan = new Date().toLocaleDateString('id-ID', { month: 'long' });
     v.innerHTML = `<div class="list">
       <div class="hcard">
-        <div class="hlabel">💰 Dompet kalian <span class="hsub">— bulan ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</span></div>
-        <div class="expsum" id="expSum"><div class="hsub">…</div></div>
+        <div class="hlabel">🏦 Tabungan bersama <span class="hsub">— pot bareng, buat target kalian</span></div>
+        <div class="savtop" id="savTop"><div class="hsub">…</div></div>
         <div id="goalBox"></div>
+        <div id="goalForm" style="display:none"><div class="hqin"><input id="goalName" placeholder="target buat apa? (date, jalan-jalan)" maxlength="60"><input id="goalAmt" type="number" inputmode="numeric" placeholder="Rp target" style="max-width:110px"></div>
+        <button id="goalSet" class="mini" style="margin-top:8px;width:100%">🎯 Pasang target</button></div>
+        <div class="hqin" style="margin-top:10px"><input id="savAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
+        <div class="hqin" style="gap:8px">
+          <button id="savInBtn" class="mini" style="flex:1">🏦 Nabung</button>
+          <button id="savOutBtn" class="mini ghost" style="flex:1">↩︎ Ambil</button>
+        </div>
+        <div id="savList" style="margin-top:6px"></div>
       </div>
       <div class="hcard">
-        <div class="hlabel">➕ Catat transaksi</div>
-        <div class="hqin"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
-        <input id="expNote" placeholder="buat apa? (makan, jajan, nabung 💕)" maxlength="80">
-        <div class="hqin" style="gap:8px">
-          <button id="expInBtn" class="mini" style="flex:1">＋ Masuk</button>
-          <button id="expOutBtn" class="mini ghost" style="flex:1">− Keluar</button>
+        <div class="hlabel">💰 Uang harian <span class="hsub">— masuk/keluar ${bulan} (pribadi, keliatan siapa catat)</span></div>
+        <div class="expsum" id="expSum"><div class="hsub">…</div></div>
+        <div id="perSum" style="margin-top:8px"></div>
+        <div class="hqin" style="margin-top:10px"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
+        <input id="expNote" placeholder="buat apa? (makan, jajan, bensin)" maxlength="80">
+        <div class="hqin" style="gap:8px;margin-top:8px">
+          <button id="expInBtn" class="mini" style="flex:1">＋ Pemasukan</button>
+          <button id="expOutBtn" class="mini ghost" style="flex:1">− Pengeluaran</button>
         </div>
       </div>
-      <div class="hcard"><div class="hlabel">🎯 Target nabung</div>
-        <div id="goalForm"><div class="hqin"><input id="goalName" placeholder="buat apa? (date, jalan-jalan)" maxlength="60"><input id="goalAmt" type="number" inputmode="numeric" placeholder="Rp target" style="max-width:120px"></div>
-        <button id="goalSet" class="mini" style="margin-top:8px">🎯 Pasang target</button></div>
-      </div>
-      <div class="msect"><b>🧾 Riwayat bulan ini</b><div id="expList"><div class="hsub">…</div></div></div>
+      <div class="msect"><b>🧾 Riwayat ${bulan}</b><div id="expList"><div class="hsub">…</div></div></div>
     </div>`;
     const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const row = (e) => `<div class="exprow">
+      <span class="expk ${e.kind}">${e.kind === 'in' ? '＋' : '−'}</span>
+      <div class="expinfo"><b>${esc(e.note || (e.pot === 'saving' ? (e.kind === 'in' ? 'nabung' : 'ambil') : 'tanpa catatan'))}</b><span>${e.mine ? 'kamu' : esc(e.by_name)} · ${agoText(e.ts)}</span></div>
+      <b class="expamt ${e.kind}">${rp(e.amount)}</b>
+      ${e.mine ? `<b class="hdel expdel" data-id="${e.id}">×</b>` : ''}</div>`;
     const loadExp = async () => {
-      const sumEl = $('#expSum'), listEl = $('#expList'), goalEl = $('#goalBox'), gf = $('#goalForm');
-      if (!sumEl || !listEl) return;
-      const d = await api('/expenses').catch(() => null); if (!sumEl.isConnected || !d) return;
-      const s = d.sum || {};
+      const d = await api('/expenses').catch(() => null); if (!d) return;
+      const savEl = $('#savTop'), sumEl = $('#expSum'), perEl = $('#perSum'), goalEl = $('#goalBox'), gf = $('#goalForm'), slEl = $('#savList'), listEl = $('#expList');
+      if (!sumEl || !sumEl.isConnected) return;
+      const s = d.daily || {}, sv = d.saving || {};
+      savEl.innerHTML = `<div class="savbal">${rp(sv.balance || 0)}</div>
+        <div class="savsplit"><span>💙 kamu nabung <b>${rp(sv.me || 0)}</b></span><span>💗 dia nabung <b>${rp(sv.them || 0)}</b></span></div>`;
       sumEl.innerHTML = `<div class="expchip in">↑<div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
         <div class="expchip out">↓<div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
         <div class="expchip bal">💰<div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
+      perEl.innerHTML = `<div class="persplit"><span>💙 kamu <b>↑${rp(s.meIn || 0)}</b> <b>↓${rp(s.meOut || 0)}</b></span><span>💗 ${esc(pname())} <b>↑${rp(s.themIn || 0)}</b> <b>↓${rp(s.themOut || 0)}</b></span></div>`;
+      // target nabung → progress dari saldo tabungan bersama
       if (goalEl && d.goal?.amount) {
-        const pct = Math.min(100, Math.round((s.balance || 0) / d.goal.amount * 100));
-        goalEl.innerHTML = `<div class="goalbox"><div class="goaltop"><b>🎯 ${esc(d.goal.name || 'Target nabung')}</b><span>${rp(s.balance || 0)} / ${rp(d.goal.amount)} · ${pct}%</span></div>
+        const pct = Math.min(100, Math.round((sv.balance || 0) / d.goal.amount * 100));
+        goalEl.innerHTML = `<div class="goalbox"><div class="goaltop"><b>🎯 ${esc(d.goal.name || 'Target nabung')}</b><span>${rp(sv.balance || 0)} / ${rp(d.goal.amount)} · ${pct}%</span></div>
           <div class="lgbar"><i style="width:${Math.max(0, pct)}%"></i></div>
           ${pct >= 100 ? '<div class="goalhit">🎉 TARGET TERCAPAI! Traktirannya gas 💕</div>' : ''}
           <button id="goalDel" class="mini ghost" style="margin-top:7px;width:100%">✕ ganti target</button></div>`;
         goalEl.querySelector('#goalDel').onclick = async () => { await api('/goal', { method: 'DELETE' }); loadExp(); };
-        gf.style.display = 'none';
-      } else if (goalEl) { goalEl.innerHTML = ''; gf.style.display = ''; }
-      listEl.innerHTML = (d.list || []).length ? d.list.map(e => `<div class="exprow">
-        <span class="expk ${e.kind}">${e.kind === 'in' ? '＋' : '−'}</span>
-        <div class="expinfo"><b>${esc(e.note || 'tanpa catatan')}</b><span>${e.mine ? 'kamu' : esc(e.by_name)} · ${agoText(e.ts)}</span></div>
-        <b class="expamt ${e.kind}">${rp(e.amount)}</b>
-        ${e.mine ? `<b class="hdel expdel" data-id="${e.id}">×</b>` : ''}</div>`).join('') : '<div class="hsub">belum ada catatan — mulai catat bareng 💰</div>';
+      } else if (goalEl) {
+        goalEl.innerHTML = '<button id="goalOpen" class="mini ghost" style="width:100%;margin-top:8px">🎯 Pasang target nabung</button>';
+        goalEl.querySelector('#goalOpen').onclick = () => { gf.style.display = ''; goalEl.innerHTML = ''; };
+      }
+      slEl.innerHTML = (d.slist || []).length ? '<div class="hsub" style="margin:8px 0 2px">mutasi tabungan:</div>' + d.slist.slice(0, 5).map(row).join('') : '';
+      slEl.querySelectorAll('.expdel').forEach(b => b.onclick = async () => { await api('/expense/' + b.dataset.id, { method: 'DELETE' }); loadExp(); });
+      listEl.innerHTML = (d.list || []).length ? d.list.map(row).join('') : '<div class="hsub">belum ada catatan harian bulan ini</div>';
       listEl.querySelectorAll('.expdel').forEach(b => b.onclick = async () => { await api('/expense/' + b.dataset.id, { method: 'DELETE' }); loadExp(); });
     };
-    const addExp = async (kind) => {
-      const amt = +$('#expAmt').value;
+    const post = async (kind, pot, amtEl, noteEl) => {
+      const amt = +amtEl.value;
       if (!amt || amt <= 0) return toast('Isi jumlahnya dulu');
-      const r = await api('/expense', { method: 'POST', body: { kind, amount: amt, note: $('#expNote').value.trim() } });
-      if (r.ok) { $('#expAmt').value = ''; $('#expNote').value = ''; toast(kind === 'in' ? `＋ ${rp(amt)} masuk 💰` : `− ${rp(amt)} keluar`); loadExp(); }
+      const r = await api('/expense', { method: 'POST', body: { kind, pot, amount: amt, note: noteEl?.value.trim() || '' } });
+      if (r.ok) { amtEl.value = ''; if (noteEl) noteEl.value = ''; toast(pot === 'saving' ? (kind === 'in' ? `🏦 ${rp(amt)} masuk tabungan` : `↩︎ ${rp(amt)} diambil`) : (kind === 'in' ? `＋ ${rp(amt)} masuk 💰` : `− ${rp(amt)} keluar`)); loadExp(); }
       else toast(r.error || 'gagal');
     };
-    $('#expInBtn').onclick = () => addExp('in');
-    $('#expOutBtn').onclick = () => addExp('out');
+    $('#expInBtn').onclick = () => post('in', 'daily', $('#expAmt'), $('#expNote'));
+    $('#expOutBtn').onclick = () => post('out', 'daily', $('#expAmt'), $('#expNote'));
+    $('#savInBtn').onclick = () => post('in', 'saving', $('#savAmt'), null);
+    $('#savOutBtn').onclick = () => post('out', 'saving', $('#savAmt'), null);
     $('#goalSet').onclick = async () => {
       const amt = +$('#goalAmt').value, name = $('#goalName').value.trim();
       if (!amt) return toast('Isi targetnya dulu');
@@ -779,6 +822,7 @@ function show(tab) {
           </div>
           <button id="guessBtn" class="mini ghost" style="width:100%">✏️ Mulai menggambar</button>
         </div>
+        <button id="ultaBtn" class="sbtn" style="--c:#ff8fb1;width:100%;margin-top:8px">🐍<span>Ular Tangga — race ke 100 bareng!</span></button>
         <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px">💘<span>Quiz "seberapa kenal"</span></button>
         <div class="league" id="league"></div>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
@@ -825,6 +869,7 @@ function show(tab) {
     if (tttG) renderTtt(tttG);
     $('#guessBtn').onclick = () => { socket.emit('guess:start'); guessMode('draw'); };
     $('#quizBtn').onclick = quizMenu;
+    $('#ultaBtn').onclick = () => { socket.emit('ulta:start'); ultaOpen(); };
     $$('.randbtn').forEach(b => b.onclick = () => {
       if (b.dataset.t === 'custom') {
         const opts = prompt('Pilihan apa aja? pisahin pakai koma (misal: mie, nasi padang, sushi)');
@@ -1003,7 +1048,8 @@ function renderKita(v) {
       ${me.partnerBattery != null ? `<div class="srow"><span>🔋 Baterai HP-nya</span><b>${me.partnerBattery}%</b></div>` : ''}
       ${me.partner.mood ? `<div class="srow"><span>😊 Mood dia</span><b>${me.partner.mood}</b></div>` : ''}
       ${me.partner.status ? `<div class="srow"><span>💬 Status dia</span><b>${esc(me.partner.status)}</b></div>` : ''}
-      ${loc?.lat != null ? `<div class="srow"><span>📍 Terakhir terlihat</span><b>${agoText(loc.ts)}${distText() ? ' · ' + distText() : ''}</b></div>` : '<div class="srow"><span>📍 Lokasi</span><b>belum share</b></div>'}`;
+      ${loc?.lat != null ? `<div class="srow"><span>📍 Terakhir terlihat</span><b style="text-align:right"><span id="monPlace">…</span><br><i style="font-style:normal;font-size:10px;color:var(--dim)">${agoText(loc.ts)}${distText() ? ' · ' + distText() : ''}</i></b></div>` : '<div class="srow"><span>📍 Lokasi</span><b>belum share</b></div>'}`;
+    if (loc?.lat != null) placeName(loc.lat, loc.lng).then(n => { const e = document.querySelector('#monPlace'); if (e) e.textContent = n || '?'; });
     feed.innerHTML = (home?.feed || []).length ? `<div class="hlabel" style="margin:8px 0 4px">⚡ Aktivitas kalian</div>` + home.feed.slice(0, 15).map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('') : '<div class="hsub">belum ada aktivitas</div>';
   })();
   q('.themrow') && v.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
@@ -1157,6 +1203,7 @@ async function renderHome(v) {
       ${avHtml(p, 'big')}
       <div class="pinfo"><b>${esc(pname())} ${p.mood || ''}</b>
         <span>${partnerOnline ? '🟢 online' : '⚪ ' + (partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline')}${distText() ? ' · 📍 ' + distText() : ''}</span>
+        <span id="hplace" class="placeline"></span>
         <span id="hstatus" class="stag">${esc(p.status || '')}</span>
         ${me.pair.song ? `<span class="songline">🎵 ${esc(me.pair.song)}</span>` : ''}
       </div>
@@ -1291,6 +1338,7 @@ async function renderHome(v) {
   $('#chatAll').onclick = chatModal;
   $('#chatImg').onclick = () => $('#chatFile').click();
   $('#chatFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
+  if (partnerLoc?.lat != null) placeName(partnerLoc.lat, partnerLoc.lng).then(n => { const e = $('#hplace'); if (e && n) e.textContent = '📍 ' + n; });
 
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
@@ -1382,6 +1430,56 @@ function chatModal() {
   el.onclick = e => { if (e.target === el) el.remove(); };
   el.querySelector('#cmIn').focus();
 }
+
+// ---------- ULAR TANGGA — race ke 100, state di server ----------
+let ultaState = null;
+const ULTA_LAD = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
+const ULTA_SNK = { 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 };
+function ultaOpen() {
+  if (!ultaState) return;
+  let el = $('.ultamodal');
+  if (!el) {
+    el = document.createElement('div'); el.className = 'wmodal ultamodal';
+    el.innerHTML = `<div class="card" style="width:min(94vw,430px);max-width:430px;max-height:88vh;overflow-y:auto">
+      <b>🐍 Ular Tangga</b>
+      <div class="ultadice" id="ulDice">🎲</div>
+      <div class="hsub" id="ulMsg" style="text-align:center;min-height:16px"></div>
+      <div class="ultaboard" id="ulBoard"></div>
+      <button id="ulRoll" class="mini" style="width:100%">🎲 Kocok!</button>
+      <button id="ulEnd" class="ghost mini" style="width:100%;margin-top:6px">Tutup game</button></div>`;
+    document.body.appendChild(el);
+    el.querySelector('#ulRoll').onclick = () => { socket.emit('ulta:roll'); navigator.vibrate?.(80); };
+    el.querySelector('#ulEnd').onclick = () => { socket.emit('ulta:end'); el.remove(); ultaState = null; };
+    el.onclick = e => { if (e.target === el) el.remove(); };
+  }
+  const s = ultaState, bd = el.querySelector('#ulBoard');
+  const [a, b] = s.order || [];
+  const nm = (uid) => uid === me.user.id ? 'kamu' : (me.partner?.name || 'dia');
+  // board 10x10 — baris ganjil ular (zigzag), sel 1 di kiri bawah
+  let cells = '';
+  for (let i = 0; i < 10; i++) {
+    const r = 9 - i;
+    for (let c = 0; c < 10; c++) {
+      const n = r * 10 + (r % 2 === 0 ? c + 1 : 10 - c);
+      const cls = n === 100 ? 'fin' : ULTA_LAD[n] ? 'lad' : ULTA_SNK[n] ? 'snk' : '';
+      const tokA = s.pos?.[a] === n, tokB = s.pos?.[b] === n;
+      const two = tokA && tokB;
+      cells += `<div class="ultacell ${cls}"><i>${n === 1 ? '🚩' : n === 100 ? '🏁' : n}</i>${tokA ? `<span class="ultatok a ${two ? 'two' : ''}">${avTok(a)}</span>` : ''}${tokB ? `<span class="ultatok b ${two ? 'two' : ''}">${avTok(b)}</span>` : ''}</div>`;
+    }
+  }
+  bd.innerHTML = cells;
+  const my = s.turn === me.user.id;
+  el.querySelector('#ulRoll').disabled = !my || !!s.win;
+  el.querySelector('#ulRoll').textContent = s.win ? '🏁 selesai' : my ? '🎲 Kocok! (giliran kamu)' : `⏳ giliran ${nm(s.turn)}…`;
+  el.querySelector('#ulDice').textContent = s.last ? ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][s.last.dice] : '🎲';
+  el.querySelector('#ulMsg').innerHTML = s.win
+    ? `🎉 <b>${nm(s.win)}</b> nyampe 100 — menang!${s.win === me.user.id ? ' 😼' : ''}`
+    : s.last ? `${esc(s.last.name)} kocok <b>${s.last.dice}</b>${s.last.msg ? ' · ' + esc(s.last.msg) : ''}` : 'yang mulai game kocok duluan 🎲';
+}
+const avTok = (uid) => {
+  const u = uid === me.user.id ? me.user : me.partner;
+  return u?.avatar?.startsWith('data:') ? `<img src="${u.avatar}">` : esc(u?.avatar || (u?.name || '?')[0].toUpperCase());
+};
 
 function photoViewer(src) {
   const el = document.createElement('div'); el.className = 'wmodal';

@@ -1,4 +1,4 @@
-const CACHE = 'ryora-v59';
+const CACHE = 'ryora-v61';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => e.waitUntil(clients.claim().then(() => caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))))));

@@ -135,6 +135,7 @@ try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); }
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 try { db.exec('ALTER TABLE pins ADD COLUMN img TEXT'); } catch {}
 try { db.exec('ALTER TABLE couple_msgs ADD COLUMN kind TEXT DEFAULT "text"'); } catch {}
+try { db.exec('ALTER TABLE expenses ADD COLUMN pot TEXT DEFAULT "daily"'); } catch {}
 db.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)');
 
 // Migrasi sekali: impor semua tabel dari couple.db lama (node:sqlite) ke replica Turso.
@@ -351,7 +352,7 @@ export const store = {
   habitChecks: (hid, days) => db.prepare('SELECT user_id, day FROM habit_checks WHERE habit_id=? AND day>=?').all(hid, days),
 
   // --- dompet kalian (keuangan bareng) ---
-  addExp: (pairId, uid, kind, amount, note) => { db.prepare('INSERT INTO expenses (id,pair_id,user_id,kind,amount,note,ts) VALUES (?,?,?,?,?,?,?)').run(id(), pairId, uid, kind, amount, note, Date.now()); },
+  addExp: (pairId, uid, kind, amount, note, pot = 'daily') => { db.prepare('INSERT INTO expenses (id,pair_id,user_id,kind,amount,note,pot,ts) VALUES (?,?,?,?,?,?,?,?)').run(id(), pairId, uid, kind, amount, note, pot, Date.now()); },
   exps: (pairId, fromTs) => db.prepare('SELECT e.*, u.name by_name FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.pair_id=? AND e.ts>=? ORDER BY e.ts DESC').all(pairId, fromTs),
   delExp: (pairId, expId, uid) => db.prepare('DELETE FROM expenses WHERE pair_id=? AND id=? AND user_id=?').run(pairId, expId, uid),
 
