@@ -459,25 +459,16 @@ function connectSocket() {
     toast(`⭕ XOXO mulai — kamu ${tttMark === 'x' ? '❌ jalan duluan' : '⭕'}!`, 4000);
   });
   socket.on('ttt:state', (g) => { tttG = g; renderTtt(g); });
-  // tebak doodle
-  socket.on('guess:start', ({ from }) => {
-    ding(); toast(`🧩 ${from} mulai gambar — tebak apa!`, 4000);
-    if (currentTab !== 'miss') { document.querySelectorAll('nav button').forEach(b => b.classList.remove('on')); document.querySelector('[data-t="miss"]')?.classList.add('on'); show('miss'); }
-    guessMode('guess');
+  // ⚡ adu cepat + 💞 dua hati
+  socket.on('tap:state', (g) => {
+    if (g.phase === 'wait' && currentTab !== 'miss') { document.querySelectorAll('nav button').forEach(b => b.classList.remove('on')); document.querySelector('[data-t="miss"]')?.classList.add('on'); show('miss'); toast(`⚡ ${g.by} ngajak adu cepat!`, 3000); }
+    renderTap(g);
   });
-  socket.on('guess:stroke', (d) => {
-    const cv = $('#guessCv'); if (!cv || guessRole !== 'guess') return;
-    const cx = cv.getContext('2d');
-    cx.strokeStyle = d.c; cx.lineWidth = 4; cx.lineCap = cx.lineJoin = 'round';
-    cx.beginPath(); cx.moveTo(d.x0, d.y0); cx.lineTo(d.x1, d.y1); cx.stroke();
+  socket.on('match:state', (g) => {
+    if (g.phase === 'pick' && currentTab !== 'miss' && !window._matchG) { toast(`💞 ${g.by || 'Dia'} ngajak main Dua Hati!`, 3000); document.querySelector('[data-t="miss"]')?.click(); }
+    if (g.phase === 'done') { if (g.match && g.mine?.[me.user.id]) heartRain(25); }
+    renderMatch(g);
   });
-  socket.on('guess:try', ({ from, text }) => { if (guessRole === 'draw') toast(`🧩 ${from} nebak: "${text}"`, 5000); });
-  socket.on('guess:correct', ({ from }) => {
-    heartRain(40); ding(); navigator.vibrate?.([300, 100, 300]);
-    toast(`🎉 Tebakan bener! ${guessRole === 'draw' ? 'Dia jago nebak' : 'Kamu jago nebak'}!`, 5000);
-    guessMode(null);
-  });
-  socket.on('guess:end', () => guessMode(null));
   socket.on('pins:changed', () => { if (map) loadPins(); });
   socket.on('ulta:state', (s) => {
     if (s.end) { ultaState = null; $('.ultamodal')?.remove(); toast('🐍 Ular tangga ditutup'); return; }
@@ -812,48 +803,38 @@ function show(tab) {
           <div id="tttBoard" class="tttboard" style="display:none"></div>
           <button id="tttBtn" class="mini ghost" style="width:100%">Ajak main</button>
         </div>
-        <div class="playbox" style="margin-top:8px">
-          <div class="pbt"><em class="ic">🧩</em> Tebak doodle</div>
-          <div id="guessState" class="hsub" style="min-height:16px;text-align:center">gambar sesuatu — dia nebak!</div>
-          <div id="guessWrap" style="display:none">
-            <canvas id="guessCv" width="260" height="200"></canvas>
-            <div class="hqin" id="guessInRow" style="display:none"><input id="guessIn" placeholder="Tebakannya…" maxlength="40"><button id="guessGo" class="mini">Tebak</button></div>
-            <button id="guessWin" class="mini" style="width:100%;display:none">✅ Tebakan bener!</button>
+        <div class="playgrid" style="margin-top:8px">
+          <div class="playbox"><div class="pbt"><em class="ic icb">⚡</em> Adu cepat</div>
+            <div id="tapState" class="hsub" style="min-height:16px;text-align:center">siapa yang tap duluan pas GO!</div>
+            <button id="tapBtn" class="mini" style="width:100%">Mulai</button>
+            <button id="tapHit" class="taphit" style="display:none">⚡ TAP!</button>
           </div>
-          <button id="guessBtn" class="mini ghost" style="width:100%">✏️ Mulai menggambar</button>
+          <div class="playbox"><div class="pbt"><em class="ic icp">💞</em> Dua hati</div>
+            <div id="matchState" class="hsub" style="min-height:16px;text-align:center">jawab samaan — klop nggak kalian?</div>
+            <button id="matchBtn" class="mini" style="width:100%">Mulai</button>
+            <div id="matchOpts" class="matchopts" style="display:none"></div>
+          </div>
         </div>
-        <button id="ultaBtn" class="sbtn" style="--c:#ff8fb1;width:100%;margin-top:8px"><em class="ic">🐍</em><span>Ular Tangga — race ke 100 bareng!</span></button>
-        <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px"><em class="ic">💘</em><span>Quiz "seberapa kenal"</span></button>
+        <button id="ultaBtn" class="sbtn" style="--c:#ff8fb1;width:100%;margin-top:8px"><em class="ic icp">🐍</em><span>Ular Tangga — race ke 100 bareng!</span></button>
+        <button id="quizBtn" class="sbtn" style="--c:#f0b93c;width:100%;margin-top:8px"><em class="ic icg">💘</em><span>Quiz "seberapa kenal"</span></button>
         <div class="league" id="league"></div>
-        <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
+        <button id="focusBtn" class="sbtn" style="--c:#4cbd95;width:100%;margin-top:8px"><em class="ic icm">⏱️</em><span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
-      <div class="msect"><b><em class="ic">🎲</em> Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
-        <div class="randgrid">
-          <button class="randbtn" data-t="coin"><em class="ic">🪙</em><span>Lempar koin</span></button>
-          <button class="randbtn" data-t="dice"><em class="ic">🎲</em><span>Lempar dadu</span></button>
-          <button class="randbtn" data-t="pick"><em class="ic">🎡</em><span>Siapa yang…?</span></button>
-          <button class="randbtn" data-t="custom"><em class="ic">✏️</em><span>Acak pilihan</span></button>
-        </div>
+      <div class="msect"><b><em class="ic icg">🪙</em> Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
+        <button class="randbtn coinflip" data-t="coin"><span class="coinface">🪙</span><span><b>Lempar koin</b><i>ANGKA atau GAMBAR — biar koin yang mutusin</i></span></button>
       </div>
-      <div class="msect"><b><em class="ic">💌</em> Kirim sesuatu</b>
+      <div class="msect"><b><em class="ic icp">💌</em> Kirim sesuatu</b>
         <div class="sendgrid">
-          <button id="vrec" class="sbtn" style="--c:#ff8fb1"><em class="ic">🎙️</em><span>Voice — tahan rekam</span></button>
-          <button id="doodBtn" class="sbtn" style="--c:#5cc8ff"><em class="ic">🎨</em><span>Doodle</span></button>
-          <button id="lwrite" class="sbtn" style="--c:#ffd166"><em class="ic">✍️</em><span>Surat</span></button>
-          <button id="capBtn2" class="sbtn" style="--c:#c58bff"><em class="ic">🎁</em><span>Kado</span></button>
+          <button id="vrec" class="sbtn" style="--c:#f37ba8"><em class="ic icp">🎙️</em><span>Voice — tahan rekam</span></button>
+          <button id="lwrite" class="sbtn" style="--c:#f0b93c"><em class="ic icg">✍️</em><span>Surat</span></button>
+          <button id="capBtn2" class="sbtn" style="--c:#9d7ff0"><em class="ic icv">🎁</em><span>Kado</span></button>
         </div>
         <div class="muted" id="vstate" style="margin-top:8px;min-height:16px"></div>
-        <div id="doodWrap" style="display:none;margin-top:10px">
-          <canvas id="doodle" width="300" height="300"></canvas>
-          <div class="penrow">${['#ffffff', '#ff8fb1', '#5cc8ff', '#ffd166', '#7ee8a2'].map((c, i) => `<button class="pen ${i === 0 ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
-          <div class="hqin"><button id="doodSend" class="mini" style="flex:1">Kirim 🎨</button><button id="doodClear" class="mini ghost">Hapus</button></div>
-        </div>
         <div id="vlist" style="margin-top:6px"></div>
         <div id="llist" style="margin-top:8px"></div>
       </div>
       <details class="msect mfold"><summary>📜 Riwayat kangen</summary><div class="histlist" id="missHist"></div></details>
     </div>`;
-    $('#doodBtn').onclick = () => { const w = $('#doodWrap'); w.style.display = w.style.display === 'none' ? '' : 'none'; };
     $('#missBig').onclick = missTap;
     setupVoice();
     loadVoices();
@@ -867,21 +848,17 @@ function show(tab) {
     $('#focusBtn').onclick = () => { socket.emit('focus:start', { dur: 25 }); toast(`Ngajak ${pname()} fokus bareng ⏱️`); };
     $('#tttBtn').onclick = () => { if (!tttG?.done) { socket.emit('ttt:invite'); $('#tttState').textContent = `nunggu ${pname()} terima… ⏳`; } else socket.emit('ttt:again'); };
     if (tttG) renderTtt(tttG);
-    $('#guessBtn').onclick = () => { socket.emit('guess:start'); guessMode('draw'); };
     $('#quizBtn').onclick = quizMenu;
     $('#ultaBtn').onclick = () => { socket.emit('ulta:start'); ultaOpen(); };
-    $$('.randbtn').forEach(b => b.onclick = () => {
-      if (b.dataset.t === 'pick') {
-        const task = prompt('Siapa yang apa? (misal: masak, bayar, jemput, milih film)');
-        if (task === null) return;
-        socket.emit('rand:go', { tool: 'pick', options: { task } });
-      } else if (b.dataset.t === 'custom') {
-        const opts = prompt('Pilihan apa aja? pisahin pakai koma (misal: mie, nasi padang, sushi)');
-        if (!opts?.trim()) return;
-        socket.emit('rand:go', { tool: 'pick', options: { list: opts.split(',').map(s => s.trim()).filter(Boolean) } });
-      } else socket.emit('rand:go', { tool: b.dataset.t });
-      toast('Mengacak… 🎲');
-    });
+    // ⚡ adu cepat
+    $('#tapBtn').onclick = () => { socket.emit('tap:go'); $('#tapState').textContent = 'siap-siap…'; $('#tapBtn').style.display = 'none'; };
+    $('#tapHit').onclick = () => socket.emit('tap:hit');
+    if (window._tapG) renderTap(window._tapG);
+    // 💞 dua hati
+    $('#matchBtn').onclick = () => { socket.emit('match:go'); $('#matchBtn').style.display = 'none'; };
+    $('#matchOpts').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { socket.emit('match:pick', { side: b.dataset.s }); $('#matchOpts').style.display = 'none'; $('#matchState').textContent = 'nunggu dia milih… ⏳'; } };
+    if (window._matchG) renderMatch(window._matchG);
+    $$('.randbtn').forEach(b => b.onclick = () => { socket.emit('rand:go', { tool: b.dataset.t }); toast('Mengacak… 🪙'); });
     // 🏅 LOVE LEAGUE — poin aktivitas bulan ini + tier
     api('/league').then(lg => {
       const el = $('#league'); if (!el || !lg?.me) return;
@@ -893,7 +870,6 @@ function show(tab) {
       const lead = lg.them ? (lg.me.pts > lg.them.pts ? '🔥 kamu unggul — pertahankan!' : lg.me.pts < lg.them.pts ? '😤 dia unggul — kejar!' : '🤝 imbang — gas terus!') : '';
       el.innerHTML = `<div class="hlabel" style="text-align:center;margin-bottom:6px">🏅 LOVE LEAGUE · ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</div>` + row(lg.me, 1) + (lg.them ? row(lg.them, 0) : '') + `<div class="hsub" style="text-align:center;margin-top:6px">${lead}</div>`;
     }).catch(() => {});
-    setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
     $('#lwrite').onclick = letterWrite;
     loadLetters();
@@ -1004,8 +980,13 @@ function renderKita(v) {
     <div class="msect"><b><em class="ic">📊</em> Statistik kalian</b>
       <div class="statgrid" id="statGrid"><div class="hsub">memuat…</div></div>
     </div>
+    <div class="msect"><b><em class="ic icv">🖼️</em> Galeri kalian <span class="hsub">— semua foto &amp; kenangan</span></b>
+      <div class="galgrid" id="galGrid"><div class="hsub">memuat…</div></div>
+      <div id="galAct" style="margin-top:8px"></div>
+    </div>
     <div class="msect"><b><em class="ic">🎨</em> Tampilan</b>
       <div class="themrow">${[['', '💜', 'Lilac'], ['sakura', '🌸', 'Sakura'], ['mint', '🍃', 'Mint'], ['peach', '🍑', 'Peach'], ['night', '🌙', 'Malam']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
+      <button id="autoNight" class="ghost" style="width:100%;margin-top:8px"></button>
     </div>
     <details class="msect mfold"><summary>📦 Arsip &amp; Lainnya</summary>
       <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
@@ -1061,6 +1042,23 @@ function renderKita(v) {
     localStorage.cw_theme = b.dataset.t;
     v.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('on', x === b));
   });
+  // 🌙 auto malam — malem 19.00–05.00 tema otomatis Cozy Night
+  const autoBtn = q('#autoNight');
+  const paintAuto = () => autoBtn.innerHTML = localStorage.cw_themeauto !== '0' ? `🌙 Auto malam: <b>nyala</b> — jam 19.00–05.00 temanya ganti sendiri` : `🌙 Auto malam: <b>mati</b>`;
+  paintAuto();
+  autoBtn.onclick = () => { localStorage.cw_themeauto = localStorage.cw_themeauto === '0' ? '1' : '0'; applyTheme(); paintAuto(); };
+  // 🖼️ galeri — media + aktivitas terbaru
+  (async () => {
+    const grid = q('#galGrid'), act = q('#galAct'); if (!grid) return;
+    const g = await api('/gallery').catch(() => null);
+    if (!grid.isConnected) return;
+    const srcIco = { mem: '🖼️', chat: '💬', foto: '📸', pin: '📌' };
+    grid.innerHTML = (g?.list || []).length ? g.list.map(m => `<div class="galcell" data-id="${m.id || m.ts}"><img src="${m.img}" loading="lazy" alt=""><span class="galsrc">${srcIco[m.src] || '🖼️'} ${esc(m.caption || m.by_name || '')}</span></div>`).join('')
+      : '<div class="hsub">belum ada foto — kirim foto di chat atau momen di Home 📸</div>';
+    grid.querySelectorAll('.galcell img').forEach(im => im.onclick = () => photoViewer(im.src));
+    const acts = (await api('/home').catch(() => null))?.feed || [];
+    act.innerHTML = acts.length ? `<div class="hlabel" style="margin:4px 0 6px">⚡ Aktivitas terbaru</div>` + acts.slice(0, 8).map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('') : '';
+  })();
   // statistik pasangan — gabungan beberapa endpoint
   (async () => {
     const grid = q('#statGrid'); if (!grid) return;
@@ -1659,73 +1657,40 @@ function renderTtt(g) {
   }
 }
 
-// ---------- TEBAK DOODLE ----------
-let guessRole = null;
-function guessMode(role) {
-  guessRole = role;
-  const wrap = $('#guessWrap'), cv = $('#guessCv'), st = $('#guessState'), btn = $('#guessBtn');
-  if (!wrap || !cv) return;
-  const cx = cv.getContext('2d');
-  cx.fillStyle = '#101c33'; cx.fillRect(0, 0, cv.width, cv.height);
-  if (!role) {
-    wrap.style.display = 'none'; $('#guessInRow').style.display = 'none'; $('#guessWin').style.display = 'none';
-    btn.style.display = ''; btn.textContent = '✏️ Mulai menggambar';
-    st.textContent = 'gambar sesuatu — dia nebak!';
-    return;
-  }
-  wrap.style.display = '';
-  if (role === 'draw') {
-    st.textContent = `gambar sesuatu — ${pname()} nebak live!`;
-    $('#guessInRow').style.display = 'none'; $('#guessWin').style.display = '';
-    btn.style.display = 'none';
-    cx.strokeStyle = '#fff'; cx.lineWidth = 4; cx.lineCap = cx.lineJoin = 'round';
-    let drawing = false, lx = 0, ly = 0;
-    const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)]; };
-    cv.onpointerdown = e => { drawing = true; [lx, ly] = pos(e); cv.setPointerCapture(e.pointerId); };
-    cv.onpointermove = e => {
-      if (!drawing) return;
-      const [x, y] = pos(e);
-      cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
-      socket.emit('guess:stroke', { x0: lx, y0: ly, x1: x, y1: y, c: '#fff' });
-      [lx, ly] = [x, y];
-    };
-    cv.onpointerup = cv.onpointercancel = () => drawing = false;
-    $('#guessWin').onclick = () => socket.emit('guess:correct');
-  } else {
-    st.textContent = `${pname()} lagi gambar — tebak apa!`;
-    $('#guessInRow').style.display = ''; $('#guessWin').style.display = 'none';
-    btn.style.display = 'none';
-    cv.onpointerdown = cv.onpointermove = cv.onpointerup = null;
-    const send = () => { const t = $('#guessIn').value.trim(); if (t) { socket.emit('guess:try', { text: t }); $('#guessIn').value = ''; } };
-    $('#guessGo').onclick = send;
-    $('#guessIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+// ---------- ⚡ ADU CEPAT ----------
+function renderTap(g) {
+  window._tapG = g;
+  const st = $('#tapState'), btn = $('#tapBtn'), hit = $('#tapHit');
+  if (!st) return;
+  if (g.phase === 'wait') { st.textContent = 'siap-siap… tunggu ⚡'; btn.style.display = 'none'; hit.style.display = ''; hit.classList.remove('go'); }
+  else if (g.phase === 'go') { st.textContent = 'GO! TAP SEKARANG!'; hit.classList.add('go'); navigator.vibrate?.(80); }
+  else if (g.phase === 'done') {
+    hit.style.display = 'none'; btn.style.display = ''; btn.textContent = 'Lagi!';
+    if (g.ms) st.textContent = g.winner === me.user.id ? `🏆 kamu menang — ${g.ms} ms! gila cepet` : `😆 ${g.winName} menang — ${g.ms} ms`;
+    else st.textContent = g.msg || 'seri';
+    if (g.winner === me.user.id) { heartRain(20); ding(); navigator.vibrate?.([150, 80, 150]); }
+    setTimeout(() => { window._tapG = null; }, 3000);
   }
 }
 
-// ---------- DOODLE ----------
-function setupDoodle() {
-  const cv = $('#doodle'); if (!cv) return;
-  const cx = cv.getContext('2d');
-  const clear = () => { cx.fillStyle = '#101c33'; cx.fillRect(0, 0, cv.width, cv.height); };
-  clear();
-  cx.lineCap = cx.lineJoin = 'round'; cx.lineWidth = 4;
-  let color = '#ffffff', drawing = false, lx = 0, ly = 0;
-  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)]; };
-  cv.onpointerdown = e => { drawing = true;[lx, ly] = pos(e); cv.setPointerCapture(e.pointerId); };
-  cv.onpointermove = e => {
-    if (!drawing) return;
-    const [x, y] = pos(e);
-    cx.strokeStyle = color; cx.beginPath(); cx.moveTo(lx, ly); cx.lineTo(x, y); cx.stroke();
-    [lx, ly] = [x, y];
-  };
-  cv.onpointerup = cv.onpointercancel = () => drawing = false;
-  $$('.pen').forEach(b => b.onclick = () => { color = b.dataset.c; $$('.pen').forEach(x => x.classList.toggle('on', x === b)); });
-  $('#doodClear').onclick = clear;
-  $('#doodSend').onclick = async () => {
-    const r = await api('/memory', { method: 'POST', body: { img: cv.toDataURL('image/jpeg', .82), caption: '🎨 doodle' } });
-    toast(r.ok ? `Doodle terkirim ke ${pname()} 🎨` : 'gagal kirim');
-    if (r.ok) clear();
-  };
+// ---------- 💞 DUA HATI ----------
+function renderMatch(g) {
+  window._matchG = g;
+  const st = $('#matchState'), btn = $('#matchBtn'), opts = $('#matchOpts');
+  if (!st) return;
+  if (g.phase === 'pick') {
+    st.innerHTML = `<b>${esc(g.q)}</b>${g.streak ? ` <span class="mstreak">🔥 ${g.streak} klop!</span>` : ''}`;
+    btn.style.display = 'none'; opts.style.display = '';
+    opts.innerHTML = `<button class="mopt" data-s="a">${esc(g.a)}</button><button class="mopt" data-s="b">${esc(g.b)}</button>`;
+  } else if (g.phase === 'picked') { st.textContent = `${g.who} udah milih — giliranmu!`; }
+  else if (g.phase === 'done') {
+    opts.style.display = 'none'; btn.style.display = ''; btn.textContent = 'Lagi!';
+    const my = g.mine[me.user.id], their = g.mine[me.partner?.id];
+    const pickTxt = s => s === 'a' ? g.a : g.b;
+    st.innerHTML = `${g.match ? '💞 KLOP!' : '💔 beda…'} kamu ${esc(pickTxt(my))} · dia ${esc(pickTxt(their))}${g.streak >= 2 ? `<br><span class="mstreak">🔥 ${g.streak} klop beruntun!</span>` : ''}`;
+    if (g.match) { heartRain(25); ding(); }
+    setTimeout(() => { window._matchG = null; }, 4000);
+  }
 }
 
 // ---------- PHONE MAP ----------
@@ -2404,7 +2369,14 @@ async function loadCapsules() {
 const _tmap = { dark: 'night', light: '', lavender: '', forest: 'mint', '': '' };
 if (localStorage.cw_theme != null && !(localStorage.cw_theme in _tmap) && !['sakura', 'mint', 'peach', 'night'].includes(localStorage.cw_theme)) localStorage.cw_theme = '';
 if (localStorage.cw_theme in _tmap) localStorage.cw_theme = _tmap[localStorage.cw_theme];
-document.documentElement.dataset.theme = localStorage.cw_theme || '';
+// tema otomatis — malem 19.00–05.00 → Cozy Night, siang → pastel pilihanmu.
+// cw_themeauto '0' = auto malam mati (bisa dimatiin di tab Kita → Tampilan).
+const applyTheme = () => {
+  const h = new Date().getHours(), night = h >= 19 || h < 5;
+  document.documentElement.dataset.theme = (night && localStorage.cw_themeauto !== '0') ? 'night' : (localStorage.cw_theme || '');
+};
+applyTheme();
+setInterval(applyTheme, 60000);
 if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 // viewport dinamis — keyboard iOS menyusutkan layar, input chat tetap kelihatan

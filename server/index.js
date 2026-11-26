@@ -380,6 +380,11 @@ app.get('/api/garden', auth, (req, res) => {
   const per = 80, level = Math.min(10, Math.floor(xp / per) + 1);
   res.json({ xp, level, pct: level >= 10 ? 100 : Math.round(xp % per / per * 100), stage: Math.min(5, Math.floor((level - 1) / 2)) });
 });
+// galeri — semua media kalian (memori, chat, foto harian, pin) satu tempat
+app.get('/api/gallery', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ list: [] });
+  res.json({ list: store.gallery(req.user.pair_id) });
+});
 // target nabung bareng
 app.post('/api/goal', auth, (req, res) => {
   const amount = Math.round(Math.abs(+req.body?.amount || 0));
@@ -799,6 +804,9 @@ app.post('/api/ai/chat', auth, async (req, res) => {
     aiGender: req.user.ai_gender,
     facts: store.facts(req.user.id),
     history: store.chatHistory(req.user.id, 12),
+    mood: req.user.mood, partnerMood: partner?.mood,
+    partnerSeen: partner?.last_seen, partnerStatus: partner?.status,
+    feed: req.user.pair_id ? store.feed(req.user.pair_id, 4).map(f => ({ mine: f.uid === req.user.id, who: f.uid === req.user.id ? req.user.name : partner.name, text: f.text })) : [],
   };
   // "ingat/inget ya ..." → simpan fakta soal user biar AI beneran ingat
   const mem = msg.match(/^(?:ingat|inget|tolong ingat|catet|catat)\s*(?:in|ya)?\s*(?:kalau|kalo)?\s*(?:aku|gw|gue)?\s*(.+)/i);
@@ -871,6 +879,25 @@ io.use((socket, next) => {
 
 const tttGames = new Map(), tttInvites = new Map();
 const ulta = new Map(); // pairId -> {pos:{uid:cell}, turn, order:[a,b], win}
+const tapGames = new Map(); // pairId -> {phase, timer, at}
+const matchGames = new Map(); // pairId -> {qi, picks, streak}
+const MATCH_QS = [
+  { q: 'date impian?', a: '🏖️ pantai', b: '⛰️ gunung' },
+  { q: 'abis gajian?', a: '🛍️ shopping', b: '💸 nabung' },
+  { q: 'makan bareng?', a: '🍜 mie', b: '🍗 ayam' },
+  { q: 'weekend ideal?', a: '🏠 rebahan', b: '🛵 jalan' },
+  { q: 'minum bareng?', a: '☕ kopi', b: '🧋 boba' },
+  { q: 'film fav?', a: '💘 romance', b: '👻 horror' },
+  { q: 'keliling?', a: '🌆 kota', b: '🌾 desa' },
+  { q: 'chat style?', a: '💬 tiap menit', b: '📞 nelpon' },
+  { q: 'hadiah pilih?', a: '💐 bunga', b: '🍫 coklat' },
+  { q: 'musim fav?', a: '☀️ panas', b: '🌧️ hujan' },
+  { q: 'kucing vs anjing?', a: '🐱 kucing', b: '🐶 anjing' },
+  { q: 'liburan bareng?', a: '🏨 staycation', b: '⛺ camping' },
+  { q: 'pagi atau malam?', a: '🌅 morning', b: '🌙 night owl' },
+  { q: 'masak vs pesen?', a: '🍳 masak sendiri', b: '🛵 gofood' },
+  { q: 'gaya pacaran?', a: '🤗 clingy', b: '😌 santuy' },
+];
 const ULTA_LADDER = { 3: 39, 4: 14, 9: 31, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 80: 100 };
 const ULTA_SNAKE = { 16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 78 };
 const tttWinner = (b) => {
@@ -1012,15 +1039,7 @@ io.on('connection', (socket) => {
     const partner = store.partnerOf(u);
     let result, label;
     if (tool === 'coin') { const angka = Math.random() < .5; result = angka ? '🔢 ANGKA' : '🦅 GAMBAR'; label = 'lempar koin'; }
-    else if (tool === 'dice') { const n = 1 + Math.floor(Math.random() * 6); result = '🎲 ' + n; label = 'lempar dadu'; }
-    else if (tool === 'pick') {
-      const oIn = Array.isArray(options) ? { list: options } : (options || {});
-      const task = String(oIn.task || '').trim().slice(0, 40);
-      const opts = (Array.isArray(oIn.list) && oIn.list.length ? oIn.list : [u.name, partner?.name].filter(Boolean)).map(o => String(o).slice(0, 40));
-      if (!opts.length) return;
-      result = '🎯 ' + opts[Math.floor(Math.random() * opts.length)];
-      label = task ? `acak "siapa yang ${task}"` : 'acak pilihan';
-    } else return;
+    else return;
     io.to(u.pair_id).emit('rand:result', { tool, result, from: u.name, label });
     pushPartner(u, { title: '🎲 LYNX LIFE', body: `${u.name} ${label} → ${result}`, tag: 'rand' });
   });
@@ -1076,19 +1095,78 @@ io.on('connection', (socket) => {
     io.to(u.pair_id).emit('ttt:state', tttState(g));
   });
 
-  // --- tebak doodle — gambar live, dia nebak ---
-  socket.on('guess:start', () => {
+  // --- ⚡ adu cepat — siapa yang tap duluan pas GO, server yang nilai ---
+  socket.on('tap:go', () => {
     if (!u.pair_id) return;
     const now = Date.now();
-    if (now - (lastMiss.get('g' + u.id) || 0) < 10000) return;
-    lastMiss.set('g' + u.id, now);
-    socket.to(u.pair_id).emit('guess:start', { from: u.name });
-    pushPartner(u, { title: '🧩 LYNX LIFE', body: `${u.name} ngajak tebak doodle — buka app!`, tag: 'guess' });
+    if (now - (lastMiss.get('tp' + u.id) || 0) < 8000) return;
+    lastMiss.set('tp' + u.id, now);
+    const g = { phase: 'wait', by: u.name, timer: null };
+    tapGames.set(u.pair_id, g);
+    io.to(u.pair_id).emit('tap:state', { phase: 'wait', by: u.name });
+    g.timer = setTimeout(() => {
+      const gg = tapGames.get(u.pair_id);
+      if (!gg || gg !== g) return;
+      g.phase = 'go'; g.at = Date.now();
+      io.to(u.pair_id).emit('tap:state', { phase: 'go' });
+      // timeout ragu — 6 detik nggak ada yang tap
+      g.timer = setTimeout(() => {
+        if (tapGames.get(u.pair_id) === g && g.phase === 'go') {
+          io.to(u.pair_id).emit('tap:state', { phase: 'done', msg: 'nggak ada yang tap 😅' });
+          tapGames.delete(u.pair_id);
+        }
+      }, 6000);
+    }, 1200 + Math.random() * 2800);
+    pushPartner(u, { title: '⚡ LYNX LIFE', body: `${u.name} ngajak adu cepat — buka app!`, tag: 'tap' });
   });
-  socket.on('guess:stroke', (d) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:stroke', d); });
-  socket.on('guess:try', ({ text }) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:try', { from: u.name, text: String(text).slice(0, 60) }); });
-  socket.on('guess:correct', () => { if (u.pair_id) io.to(u.pair_id).emit('guess:correct', { from: u.name }); });
-  socket.on('guess:end', () => { if (u.pair_id) io.to(u.pair_id).emit('guess:end'); });
+  socket.on('tap:hit', () => {
+    const g = u.pair_id && tapGames.get(u.pair_id);
+    if (!g || g.phase === 'done') return;
+    const partner = store.partnerOf(u);
+    if (g.phase === 'wait') { // tap kepagian = langsung kalah
+      g.phase = 'done'; clearTimeout(g.timer);
+      io.to(u.pair_id).emit('tap:state', { phase: 'done', winner: partner?.id, loser: u.id, msg: `${u.name} kepagian! 😂`, falseStart: u.id });
+      store.suitAdd(u.pair_id, partner?.id || 'draw', 'tap');
+      tapGames.delete(u.pair_id); return;
+    }
+    if (g.phase === 'go') {
+      g.phase = 'done'; clearTimeout(g.timer);
+      const ms = Date.now() - g.at;
+      io.to(u.pair_id).emit('tap:state', { phase: 'done', winner: u.id, winName: u.name, ms });
+      store.suitAdd(u.pair_id, u.id, 'tap');
+      tapGames.delete(u.pair_id);
+    }
+  });
+
+  // --- 💞 dua hati — jawab pertanyaan samaan, klop = match ---
+  socket.on('match:go', () => {
+    if (!u.pair_id) return;
+    const now = Date.now();
+    if (now - (lastMiss.get('mh' + u.id) || 0) < 8000) return;
+    lastMiss.set('mh' + u.id, now);
+    const g = { picks: {}, streak: matchGames.get(u.pair_id)?.streak || 0 };
+    matchGames.set(u.pair_id, g);
+    const qi = Math.floor(Math.random() * MATCH_QS.length);
+    g.qi = qi;
+    const q = MATCH_QS[qi];
+    io.to(u.pair_id).emit('match:state', { phase: 'pick', q: q.q, a: q.a, b: q.b, streak: g.streak });
+    pushPartner(u, { title: '💞 LYNX LIFE', body: `${u.name} ngajak main Dua Hati — seberapa klop kalian?`, tag: 'match' });
+  });
+  socket.on('match:pick', ({ side }) => {
+    const g = u.pair_id && matchGames.get(u.pair_id);
+    if (!g || !['a', 'b'].includes(side) || g.picks[u.id]) return;
+    const partner = store.partnerOf(u);
+    g.picks[u.id] = side;
+    socket.to(u.pair_id).emit('match:state', { phase: 'picked', who: u.name });
+    if (!partner || !g.picks[partner.id]) return;
+    const q = MATCH_QS[g.qi], match = g.picks[u.id] === g.picks[partner.id];
+    g.streak = match ? g.streak + 1 : 0;
+    io.to(u.pair_id).emit('match:state', {
+      phase: 'done', match, q: q.q,
+      mine: { [u.id]: g.picks[u.id], [partner.id]: g.picks[partner.id] },
+      a: q.a, b: q.b, streak: g.streak, names: { [u.id]: u.name, [partner.id]: partner.name },
+    });
+  });
 
   // --- fokus bareng — timer sinkron di dua HP ---
   socket.on('focus:start', ({ dur }) => {

@@ -686,3 +686,54 @@ input,textarea,select { background:var(--soft); border:1px solid var(--line); }
 .ginfo .hsub { margin-top:1px; }
 .gbar { height:7px; border-radius:99px; background:var(--soft); overflow:hidden; margin-top:7px; }
 .gbar i { display:block; height:100%; border-radius:99px; background:var(--grad); transition:width .7s cubic-bezier(.3,1,.4,1); }
+
+/* ===== ICON VARIANTS + TINTED BUTTONS + GAMES BARU ===== */
+.ic.icv { background:linear-gradient(135deg,#c9b6fb,#9d7ff0); color:#fff; text-shadow:0 1px 2px rgba(80,50,160,.35); }
+.ic.icp { background:linear-gradient(135deg,#ffc4da,#f37ba8); color:#fff; text-shadow:0 1px 2px rgba(160,50,90,.3); }
+.ic.icb { background:linear-gradient(135deg,#b3dcff,#5aa7e0); color:#fff; text-shadow:0 1px 2px rgba(40,90,150,.3); }
+.ic.icm { background:linear-gradient(135deg,#a5ecd8,#4cbd95); color:#fff; text-shadow:0 1px 2px rgba(20,110,80,.3); }
+.ic.icg { background:linear-gradient(135deg,#ffe6a8,#f0b93c); color:#7a5a00; }
+.ic.ico { background:linear-gradient(135deg,#ffd0a8,#f2a25e); color:#fff; text-shadow:0 1px 2px rgba(150,80,20,.3); }
+
+/* sbtn — ikon berwarna + tint halus sesuai --c (nggak nyaru lagi) */
+.sbtn { background:color-mix(in srgb, var(--c,#8b6fd8) 9%, var(--card)); border-color:color-mix(in srgb, var(--c,#8b6fd8) 45%, transparent); }
+.sbtn .ic { background:linear-gradient(135deg, color-mix(in srgb,var(--c) 55%,#fff) 0%, var(--c) 100%); color:#fff; text-shadow:0 1px 2px rgba(60,40,110,.3); }
+[data-theme=night] .sbtn { background:color-mix(in srgb, var(--c,#8b6fd8) 16%, var(--card)); }
+
+/* ghost / mini — keliatan jelas, bukan pil kosong */
+button.ghost { background:var(--soft); border:1px solid var(--line); color:var(--accent); font-weight:600; box-shadow:none; }
+button.mini { background:var(--chip); border:1px solid color-mix(in srgb,var(--accent) 35%,transparent); color:var(--accent); font-weight:700; }
+button.mini.ghost { background:var(--soft); }
+
+/* ⚡ adu cepat — tombol TAP gede */
+.taphit { width:100%; padding:22px 0; border-radius:16px; font-size:24px; font-weight:800; font-family:'Fredoka',sans-serif;
+  background:var(--soft); color:var(--dim); border:2px dashed var(--line); letter-spacing:1px; }
+.taphit.go { background:linear-gradient(135deg,#ffd166,#ff8fb1); color:#4a1025; border-style:solid; border-color:transparent;
+  box-shadow:0 8px 28px rgba(255,143,177,.45); animation:tapgo .5s ease infinite alternate; }
+@keyframes tapgo { to { transform:scale(1.03) } }
+
+/* 💞 dua hati — pilihan A/B */
+.matchopts { display:flex; flex-direction:column; gap:7px; width:100%; }
+.mopt { padding:12px; border-radius:14px; font-size:14px; font-weight:700; background:var(--soft);
+  border:1.5px solid var(--line); color:var(--text); }
+.mopt:active { transform:scale(.96); }
+.mstreak { display:inline-block; margin-top:5px; font-size:11px; font-weight:800; color:#e05c8a; background:#ffd9e6;
+  padding:3px 10px; border-radius:99px; }
+[data-theme=night] .mstreak { background:#4a2b3d; color:#ff9ec2; }
+
+/* 🪙 koin — satu tombol gede */
+.randbtn.coinflip { display:flex; align-items:center; gap:14px; padding:16px; text-align:left; width:100%; }
+.randbtn.coinflip .coinface { font-size:38px; animation:coinbob 2.6s ease-in-out infinite; }
+@keyframes coinbob { 50% { transform:translateY(-4px) rotateY(40deg) } }
+.randbtn.coinflip b { font-size:15px; display:block; }
+.randbtn.coinflip i { font-style:normal; font-size:11px; color:var(--dim); display:block; margin-top:2px; }
+
+/* 🖼️ galeri — grid foto */
+.galgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.galcell { position:relative; border-radius:12px; overflow:hidden; aspect-ratio:1; background:var(--soft);
+  border:1px solid var(--line); }
+.galcell img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .3s ease; }
+.galcell:active img { transform:scale(1.06); }
+.galsrc { position:absolute; left:4px; bottom:4px; right:4px; font-size:8.5px; font-weight:700; color:#fff;
+  background:rgba(60,45,95,.55); backdrop-filter:blur(4px); border-radius:7px; padding:2px 6px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

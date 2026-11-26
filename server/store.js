@@ -396,6 +396,14 @@ export const store = {
       answers: db.prepare('SELECT COUNT(DISTINCT day) c FROM answers WHERE pair_id=?').get(pairId).c,
     };
   },
+  // galeri — semua media kalian di satu tempat
+  gallery: (pairId) => {
+    const mems = db.prepare('SELECT m.id, m.img, m.caption, m.ts, u.name by_name FROM memories m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? AND m.img IS NOT NULL ORDER BY m.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'mem' }));
+    const chat = db.prepare("SELECT cm.id, cm.text img, '' caption, cm.ts, u.name by_name FROM couple_msgs cm JOIN users u ON u.id=cm.user_id WHERE cm.pair_id=? AND cm.kind='img' ORDER BY cm.ts DESC LIMIT 40").all(pairId).map(r => ({ ...r, src: 'chat' }));
+    const daily = db.prepare('SELECT p.img, p.caption, p.ts, u.name by_name FROM photos p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'foto' }));
+    const pinph = db.prepare('SELECT p.id, p.img, p.name caption, p.ts, u.name by_name FROM pins p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 20').all(pairId).map(r => ({ ...r, src: 'pin' }));
+    return [...mems, ...chat, ...daily, ...pinph].sort((a, b) => b.ts - a.ts).slice(0, 60);
+  },
   monthStats: (pairId, since) => ({
     miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,
     miss_by: db.prepare('SELECT from_user, COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),
