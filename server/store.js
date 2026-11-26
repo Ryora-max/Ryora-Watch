@@ -134,6 +134,7 @@ try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
 try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
 try { db.exec('ALTER TABLE pins ADD COLUMN img TEXT'); } catch {}
+try { db.exec('ALTER TABLE couple_msgs ADD COLUMN kind TEXT DEFAULT "text"'); } catch {}
 db.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)');
 
 // Migrasi sekali: impor semua tabel dari couple.db lama (node:sqlite) ke replica Turso.
@@ -334,8 +335,8 @@ export const store = {
   pinPhoto: (pairId, pinId, img) => db.prepare('UPDATE pins SET img=? WHERE pair_id=? AND id=?').run(img, pairId, pinId),
 
   // --- mini-chat pasangan ---
-  addCMsg: (pairId, uid, text) => {
-    db.prepare('INSERT INTO couple_msgs (id,pair_id,user_id,text,ts) VALUES (?,?,?,?,?)').run(id(), pairId, uid, text, Date.now());
+  addCMsg: (pairId, uid, text, kind = 'text') => {
+    db.prepare('INSERT INTO couple_msgs (id,pair_id,user_id,text,kind,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, text, kind, Date.now());
     db.prepare('DELETE FROM couple_msgs WHERE pair_id=? AND id NOT IN (SELECT id FROM couple_msgs WHERE pair_id=? ORDER BY ts DESC LIMIT 400)').run(pairId, pairId);
   },
   cmsgs: (pairId, n = 80) => db.prepare('SELECT m.*, u.name from_name FROM couple_msgs m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, n).reverse(),

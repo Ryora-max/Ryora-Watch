@@ -3,7 +3,7 @@ const B = 'http://localhost:3000';
 const J = (r) => r.json();
 const post = (p, b, t) => fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(t ? { 'x-token': t } : {}) }, body: JSON.stringify(b || {}) }).then(J);
 // tombol yang di-skip: destruktif / butuh hardware / eksternal
-const SKIP = /unpair|del|logout|install|export|mic|vmode|geoTgl|pinBtn|photo|mem|voice|hfile|gfile|ttt|suit|tod|doodle|nobar|focus|touch|guess|letter|capsule|quiz|missBig|csend|locCenter|nav/i;
+const SKIP = /unpair|del|logout|install|export|mic|vmode|geoTgl|pinBtn|photo|mem|voice|hfile|gfile|ttt|suit|tod|doodle|nobar|focus|touch|guess|letter|capsule|quiz|missBig|csend|locCenter|nav|rand|chatImg|chatFile|expIn|expOut|goalSet|brk|meet|tour|iosInstall|wrapBtn|wrapYr/i;
 (async () => {
   const ua = await post('/api/register', { name: 'Sky' });
   const ub = await post('/api/register', { name: 'Tiara' });
@@ -20,7 +20,7 @@ const SKIP = /unpair|del|logout|install|export|mic|vmode|geoTgl|pinBtn|photo|mem
   }, ua.token);
   await page.goto(B, { waitUntil: 'domcontentloaded' });
   await new Promise(r => setTimeout(r, 4000));
-  for (const t of ['home', 'map', 'sched', 'miss', 'ai', 'kita']) {
+  for (const t of ['home', 'map', 'sched', 'uang', 'miss', 'ai', 'kita']) {
     if (t !== 'home') await page.evaluate(tb => document.querySelector(`[data-t="${tb}"]`)?.click(), t);
     await new Promise(r => setTimeout(r, 1500));
     const clicked = await page.evaluate(async (skipRe) => {

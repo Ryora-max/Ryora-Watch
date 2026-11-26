@@ -379,6 +379,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .expinfo b { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .expinfo span { font-size:10px; color:var(--dim); }
 .expamt { font-size:12px; } .expamt.in { color:#7ee8a2; } .expamt.out { color:#ff8fb1; }
+.expdel { flex-shrink:0; }
+.goalbox { margin-top:10px; }
+.goaltop { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:13px; }
+.goaltop span { font-size:10px; color:var(--dim); white-space:nowrap; }
+.goalhit { margin-top:7px; text-align:center; font-size:12px; font-weight:800; color:#ffd166; }
+/* sesi random */
+.randgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.randbtn { display:flex; flex-direction:column; align-items:center; gap:5px; padding:13px 6px; font-size:22px; background:#ffffff10; border:1px solid var(--line); border-radius:14px; }
+.randbtn span { font-size:11px; font-weight:600; }
+.randbtn:active { transform:scale(.94); }
+.cimg { max-width:200px; max-height:200px; border-radius:10px; display:block; cursor:zoom-in; }
 /* credit */
 .appcredit { text-align:center; padding:18px 0 8px; font-size:13px; font-weight:800; letter-spacing:1.5px; color:var(--dim); }
 .appcredit b { background:linear-gradient(90deg,#5cc8ff,#4fd8c0); -webkit-background-clip:text; background-clip:text; color:transparent; }

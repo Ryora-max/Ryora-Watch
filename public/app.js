@@ -206,8 +206,9 @@ async function mainUI() {
   <div id="view"></div>
   <nav>
     <button data-t="home" class="on">🏠<span>Home</span></button>
-    <button data-t="map">🗺️<span>Peta</span></button>
+    <button data-t="map">📡<span>Live</span></button>
     <button data-t="sched">📅<span>Jadwal</span></button>
+    <button data-t="uang">💰<span>Uang</span></button>
     <button data-t="miss">🎮<span>Main</span></button>
     <button data-t="ai">✦<span>AI</span></button>
     <button data-t="kita">✨<span>Kita</span></button>
@@ -310,6 +311,7 @@ function connectSocket() {
   socket.on('home:changed', async () => {
     try { const d = await api('/me'); if (d?.partner) { me.partner = d.partner; me.pair = d.pair; } } catch {}
     if (currentTab === 'home') renderHome($('#view'));
+    else if (currentTab === 'uang') show('uang');
     const hn = $('.whoinfo .pname'); if (hn) hn.childNodes[0].textContent = pname() + (me.partner.mood ? ' ' + me.partner.mood : '') + ' ';
   });
   socket.on('bucket:changed', () => { if (currentTab === 'sched') loadBucket(); });
@@ -416,7 +418,7 @@ function connectSocket() {
       list.insertAdjacentHTML('beforeend', cmsgRow(m));
       list.scrollTop = list.scrollHeight;
     }
-    if (m.uid !== me.user.id) { ding(); navigator.vibrate?.(120); if (!list) toast(`💬 ${m.from}: ${m.text.slice(0, 60)}`, 3500); }
+    if (m.uid !== me.user.id) { ding(); navigator.vibrate?.(120); if (!list) toast(m.kind === 'img' ? `📷 ${m.from} kirim foto` : `💬 ${m.from}: ${m.text.slice(0, 60)}`, 3500); }
   });
   socket.on('letter:new', ({ from }) => {
     ding(); navigator.vibrate?.([250, 100, 250]);
@@ -460,6 +462,14 @@ function connectSocket() {
   });
   socket.on('guess:end', () => guessMode(null));
   socket.on('pins:changed', () => { if (map) loadPins(); });
+  socket.on('rand:result', ({ result, from, label }) => {
+    const el = document.createElement('div'); el.className = 'nobarOv';
+    el.innerHTML = `<div class="nobx"><b>🎲 ${esc(from)} ${esc(label || 'ngacak')}</b><span class="nbn" style="font-size:44px">${esc(result)}</span><i>hasil sama di dua HP — fair!</i></div>`;
+    document.body.appendChild(el);
+    ding(); navigator.vibrate?.([150, 80, 150]);
+    setTimeout(() => el.remove(), 5000);
+    el.onclick = () => el.remove();
+  });
   socket.on('tod:card', ({ mode, text, from }) => {
     ding(); navigator.vibrate?.(200);
     const el = $('#todState');
@@ -660,6 +670,70 @@ function show(tab) {
     };
     initMap(); renderGeoCard(); return;
   }
+  if (tab === 'uang') {
+    v.innerHTML = `<div class="list">
+      <div class="hcard">
+        <div class="hlabel">💰 Dompet kalian <span class="hsub">— bulan ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</span></div>
+        <div class="expsum" id="expSum"><div class="hsub">…</div></div>
+        <div id="goalBox"></div>
+      </div>
+      <div class="hcard">
+        <div class="hlabel">➕ Catat transaksi</div>
+        <div class="hqin"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
+        <input id="expNote" placeholder="buat apa? (makan, jajan, nabung 💕)" maxlength="80">
+        <div class="hqin" style="gap:8px">
+          <button id="expInBtn" class="mini" style="flex:1">＋ Masuk</button>
+          <button id="expOutBtn" class="mini ghost" style="flex:1">− Keluar</button>
+        </div>
+      </div>
+      <div class="hcard"><div class="hlabel">🎯 Target nabung</div>
+        <div id="goalForm"><div class="hqin"><input id="goalName" placeholder="buat apa? (date, jalan-jalan)" maxlength="60"><input id="goalAmt" type="number" inputmode="numeric" placeholder="Rp target" style="max-width:120px"></div>
+        <button id="goalSet" class="mini" style="margin-top:8px">🎯 Pasang target</button></div>
+      </div>
+      <div class="msect"><b>🧾 Riwayat bulan ini</b><div id="expList"><div class="hsub">…</div></div></div>
+    </div>`;
+    const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const loadExp = async () => {
+      const sumEl = $('#expSum'), listEl = $('#expList'), goalEl = $('#goalBox'), gf = $('#goalForm');
+      if (!sumEl || !listEl) return;
+      const d = await api('/expenses').catch(() => null); if (!sumEl.isConnected || !d) return;
+      const s = d.sum || {};
+      sumEl.innerHTML = `<div class="expchip in">↑<div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
+        <div class="expchip out">↓<div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
+        <div class="expchip bal">💰<div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
+      if (goalEl && d.goal?.amount) {
+        const pct = Math.min(100, Math.round((s.balance || 0) / d.goal.amount * 100));
+        goalEl.innerHTML = `<div class="goalbox"><div class="goaltop"><b>🎯 ${esc(d.goal.name || 'Target nabung')}</b><span>${rp(s.balance || 0)} / ${rp(d.goal.amount)} · ${pct}%</span></div>
+          <div class="lgbar"><i style="width:${Math.max(0, pct)}%"></i></div>
+          ${pct >= 100 ? '<div class="goalhit">🎉 TARGET TERCAPAI! Traktirannya gas 💕</div>' : ''}
+          <button id="goalDel" class="mini ghost" style="margin-top:7px;width:100%">✕ ganti target</button></div>`;
+        goalEl.querySelector('#goalDel').onclick = async () => { await api('/goal', { method: 'DELETE' }); loadExp(); };
+        gf.style.display = 'none';
+      } else if (goalEl) { goalEl.innerHTML = ''; gf.style.display = ''; }
+      listEl.innerHTML = (d.list || []).length ? d.list.map(e => `<div class="exprow">
+        <span class="expk ${e.kind}">${e.kind === 'in' ? '＋' : '−'}</span>
+        <div class="expinfo"><b>${esc(e.note || 'tanpa catatan')}</b><span>${e.mine ? 'kamu' : esc(e.by_name)} · ${agoText(e.ts)}</span></div>
+        <b class="expamt ${e.kind}">${rp(e.amount)}</b>
+        ${e.mine ? `<b class="hdel expdel" data-id="${e.id}">×</b>` : ''}</div>`).join('') : '<div class="hsub">belum ada catatan — mulai catat bareng 💰</div>';
+      listEl.querySelectorAll('.expdel').forEach(b => b.onclick = async () => { await api('/expense/' + b.dataset.id, { method: 'DELETE' }); loadExp(); });
+    };
+    const addExp = async (kind) => {
+      const amt = +$('#expAmt').value;
+      if (!amt || amt <= 0) return toast('Isi jumlahnya dulu');
+      const r = await api('/expense', { method: 'POST', body: { kind, amount: amt, note: $('#expNote').value.trim() } });
+      if (r.ok) { $('#expAmt').value = ''; $('#expNote').value = ''; toast(kind === 'in' ? `＋ ${rp(amt)} masuk 💰` : `− ${rp(amt)} keluar`); loadExp(); }
+      else toast(r.error || 'gagal');
+    };
+    $('#expInBtn').onclick = () => addExp('in');
+    $('#expOutBtn').onclick = () => addExp('out');
+    $('#goalSet').onclick = async () => {
+      const amt = +$('#goalAmt').value, name = $('#goalName').value.trim();
+      if (!amt) return toast('Isi targetnya dulu');
+      const r = await api('/goal', { method: 'POST', body: { name, amount: amt } });
+      if (r.ok) { toast('🎯 Target dipasang!'); loadExp(); } else toast(r.error || 'gagal');
+    };
+    loadExp(); return;
+  }
   if (tab === 'miss') {
     v.innerHTML = `<div class="misspage">
       <button id="missBig"><span class="hb">💓</span><span id="tapN"></span></button>
@@ -709,6 +783,14 @@ function show(tab) {
         <div class="league" id="league"></div>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
+      <div class="msect"><b>🎲 Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
+        <div class="randgrid">
+          <button class="randbtn" data-t="coin">🪙<span>Lempar koin</span></button>
+          <button class="randbtn" data-t="dice">🎲<span>Lempar dadu</span></button>
+          <button class="randbtn" data-t="pick">🎡<span>Siapa yang…?</span></button>
+          <button class="randbtn" data-t="custom">✏️<span>Acak pilihan</span></button>
+        </div>
+      </div>
       <div class="msect"><b>Kirim sesuatu</b>
         <div class="sendgrid">
           <button id="vrec" class="sbtn" style="--c:#ff8fb1">🎙️<span>Voice — tahan rekam</span></button>
@@ -743,6 +825,14 @@ function show(tab) {
     if (tttG) renderTtt(tttG);
     $('#guessBtn').onclick = () => { socket.emit('guess:start'); guessMode('draw'); };
     $('#quizBtn').onclick = quizMenu;
+    $$('.randbtn').forEach(b => b.onclick = () => {
+      if (b.dataset.t === 'custom') {
+        const opts = prompt('Pilihan apa aja? pisahin pakai koma (misal: mie, nasi padang, sushi)');
+        if (!opts?.trim()) return;
+        socket.emit('rand:go', { tool: 'pick', options: opts.split(',').map(s => s.trim()).filter(Boolean) });
+      } else socket.emit('rand:go', { tool: b.dataset.t });
+      toast('Mengacak… 🎲');
+    });
     // 🏅 LOVE LEAGUE — poin aktivitas bulan ini + tier
     api('/league').then(lg => {
       const el = $('#league'); if (!el || !lg?.me) return;
@@ -858,15 +948,9 @@ function renderKita(v) {
       <div class="hsub" style="margin-top:2px">lagu kalian:</div>
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
-    <div class="msect"><b>💰 Dompet kalian <span class="hsub">— bulan ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</span></b>
-      <div class="expsum" id="expSum"><div class="hsub">…</div></div>
-      <div class="hqin"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
-      <input id="expNote" placeholder="buat apa? (makan, jajan, nabung 💕)" maxlength="80">
-      <div class="hqin" style="gap:8px">
-        <button id="expInBtn" class="mini" style="flex:1">＋ Masuk</button>
-        <button id="expOutBtn" class="mini ghost" style="flex:1">− Keluar</button>
-      </div>
-      <div id="expList"></div>
+    <div class="msect"><b>📡 Monitoring dia <span class="hsub">— status &amp; aktivitas terbaru</span></b>
+      <div class="monit" id="monit"><div class="hsub">…</div></div>
+      <div id="monitFeed"><div class="hsub">…</div></div>
     </div>
     <div class="msect"><b>📊 Statistik kalian</b>
       <div class="statgrid" id="statGrid"><div class="hsub">memuat…</div></div>
@@ -910,33 +994,18 @@ function renderKita(v) {
     await api('/song', { method: 'POST', body: { text: t } });
     me.pair.song = t; toast(t ? `🎵 "${t}" — lagu kalian!` : 'Lagu dihapus');
   };
-  // 💰 dompet kalian
-  const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
-  const loadExp = async () => {
-    const sumEl = q('#expSum'), listEl = q('#expList'); if (!sumEl || !listEl) return;
-    const d = await api('/expenses').catch(() => null); if (!sumEl.isConnected) return;
-    if (!d) return;
-    const s = d.sum || {};
-    sumEl.innerHTML = `<div class="expchip in">↑<div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
-      <div class="expchip out">↓<div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
-      <div class="expchip bal">💰<div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
-    listEl.innerHTML = (d.list || []).length ? d.list.slice(0, 12).map(e => `<div class="exprow">
-      <span class="expk ${e.kind}">${e.kind === 'in' ? '＋' : '−'}</span>
-      <div class="expinfo"><b>${esc(e.note || 'tanpa catatan')}</b><span>${e.mine ? 'kamu' : esc(e.by_name)} · ${agoText(e.ts)}</span></div>
-      <b class="expamt ${e.kind}">${rp(e.amount)}</b>
-      ${e.mine ? `<b class="hdel expdel" data-id="${e.id}">×</b>` : ''}</div>`).join('') : '<div class="hsub">belum ada catatan — mulai catat bareng 💰</div>';
-    listEl.querySelectorAll('.expdel').forEach(b => b.onclick = async () => { await api('/expense/' + b.dataset.id, { method: 'DELETE' }); loadExp(); });
-  };
-  const addExp = async (kind) => {
-    const amt = +q('#expAmt').value;
-    if (!amt || amt <= 0) return toast('Isi jumlahnya dulu');
-    const r = await api('/expense', { method: 'POST', body: { kind, amount: amt, note: q('#expNote').value.trim() } });
-    if (r.ok) { q('#expAmt').value = ''; q('#expNote').value = ''; toast(kind === 'in' ? `＋ ${rp(amt)} masuk 💰` : `− ${rp(amt)} keluar`); loadExp(); }
-    else toast(r.error || 'gagal');
-  };
-  q('#expInBtn').onclick = () => addExp('in');
-  q('#expOutBtn').onclick = () => addExp('out');
-  loadExp();
+  // 📡 monitoring — status detail dia + feed aktivitas kalian
+  (async () => {
+    const mon = q('#monit'), feed = q('#monitFeed'); if (!mon || !feed) return;
+    const [loc, home] = await Promise.all([api('/partner/location').catch(() => null), api('/home').catch(() => null)]);
+    if (!mon.isConnected) return;
+    mon.innerHTML = `<div class="srow"><span>${partnerOnline ? '🟢 Status' : '⚪ Status'}</span><b>${partnerOnline ? 'online sekarang' : partnerSeen ? 'aktif ' + agoText(partnerSeen) : 'offline'}</b></div>
+      ${me.partnerBattery != null ? `<div class="srow"><span>🔋 Baterai HP-nya</span><b>${me.partnerBattery}%</b></div>` : ''}
+      ${me.partner.mood ? `<div class="srow"><span>😊 Mood dia</span><b>${me.partner.mood}</b></div>` : ''}
+      ${me.partner.status ? `<div class="srow"><span>💬 Status dia</span><b>${esc(me.partner.status)}</b></div>` : ''}
+      ${loc?.lat != null ? `<div class="srow"><span>📍 Terakhir terlihat</span><b>${agoText(loc.ts)}${distText() ? ' · ' + distText() : ''}</b></div>` : '<div class="srow"><span>📍 Lokasi</span><b>belum share</b></div>'}`;
+    feed.innerHTML = (home?.feed || []).length ? `<div class="hlabel" style="margin:8px 0 4px">⚡ Aktivitas kalian</div>` + home.feed.slice(0, 15).map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('') : '<div class="hsub">belum ada aktivitas</div>';
+  })();
   q('.themrow') && v.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
     document.documentElement.dataset.theme = b.dataset.t;
     localStorage.cw_theme = b.dataset.t;
@@ -1123,7 +1192,7 @@ async function renderHome(v) {
     <div class="hcard">
       <div class="hlabel">💬 Chat kalian</div>
       <div class="chatprev" id="chatPrev"><div class="hsub">belum ada chat — mulai ngobrol 💬</div></div>
-      <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
+      <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatImg" class="mini ghost" title="Kirim foto">📷</button><input type="file" id="chatFile" accept="image/*" capture="environment" hidden><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
     </div>
     <div class="hcard">
       <div class="hlabel">📸 Foto hari ini</div>
@@ -1143,9 +1212,6 @@ async function renderHome(v) {
         <label class="hphotobtn" style="flex:1;margin:0">🖼️ Galeri<input type="file" id="mgal" accept="image/*" hidden></label>
       </div>
     </div>
-    ${d.feed?.length ? `<div class="hcard"><div class="hlabel">⚡ Aktivitas kalian</div>
-      ${d.feed.map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('')}
-    </div>` : ''}
   </div>`;
   v.querySelectorAll('.hmood .mood').forEach(b => b.onclick = async () => {
     me.user.mood = b.dataset.m;
@@ -1223,6 +1289,8 @@ async function renderHome(v) {
   $('#chatSend').onclick = () => sendChat($('#chatIn'));
   $('#chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat($('#chatIn')); };
   $('#chatAll').onclick = chatModal;
+  $('#chatImg').onclick = () => $('#chatFile').click();
+  $('#chatFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
 
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
@@ -1271,12 +1339,27 @@ const renderChatPrev = () => {
   const el = $('#chatPrev'); if (!el) return;
   el.innerHTML = chatCache.slice(-3).map(m => {
     const mine = m.mine ?? (m.uid === me?.user?.id);
-    return `<div class="cpmsg ${mine ? 'me' : ''}"><b>${mine ? 'Kamu' : esc(m.from_name || pname())}</b>${esc(m.text)}</div>`;
+    return `<div class="cpmsg ${mine ? 'me' : ''}"><b>${mine ? 'Kamu' : esc(m.from_name || pname())}</b>${m.kind === 'img' ? '<i>📷 foto</i>' : esc(m.text)}</div>`;
   }).join('') || '<div class="hsub">belum ada chat — mulai ngobrol 💬</div>';
+  el.onclick = e => { if (e.target.classList.contains('cimg')) photoViewer(e.target.src); };
 };
 const cmsgRow = (m) => {
   const mine = m.mine ?? (m.uid === me?.user?.id);
-  return `<div class="cmsg ${mine ? 'me' : ''}"><div class="cbub">${esc(m.text)}<i>${msgTime(m.ts)}</i></div></div>`;
+  const body = m.kind === 'img' ? `<img class="cimg" src="${m.text}">` : esc(m.text);
+  return `<div class="cmsg ${mine ? 'me' : ''}"><div class="cbub">${body}<i>${msgTime(m.ts)}</i></div></div>`;
+};
+// kirim foto di chat — resize 640 lalu kirim kind:'img'
+const sendChatImg = (file) => {
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    const s = Math.min(1, 640 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    api('/msg', { method: 'POST', body: { text: c.toDataURL('image/jpeg', .65), kind: 'img' } }).then(r => { if (r.error) toast(r.error); });
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(file);
 };
 function chatModal() {
   if ($('.chatmodal')) return;
@@ -1284,7 +1367,7 @@ function chatModal() {
   el.innerHTML = `<div class="card" style="display:flex;flex-direction:column;max-height:82vh;width:min(92vw,420px);max-width:420px">
     <b style="margin-bottom:8px">💬 Chat kalian</b>
     <div id="cmlist" class="cmlist">${chatCache.map(cmsgRow).join('') || '<div class="hsub" style="text-align:center;padding:20px">belum ada chat — sapa dia duluan 👋</div>'}</div>
-    <div class="hqin" style="margin-top:8px"><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="mini">➤</button></div>
+    <div class="hqin" style="margin-top:8px"><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="mini">➤</button><button id="cmImg" class="mini ghost" title="Kirim foto">📷</button><input type="file" id="cmFile" accept="image/*" capture="environment" hidden></div>
     <button id="cmCls" class="ghost mini" style="margin-top:8px">Tutup</button></div>`;
   document.body.appendChild(el);
   const list = el.querySelector('#cmlist');
@@ -1292,6 +1375,9 @@ function chatModal() {
   const send = async () => { const t = el.querySelector('#cmIn').value.trim(); if (!t) return; el.querySelector('#cmIn').value = ''; await api('/msg', { method: 'POST', body: { text: t } }); };
   el.querySelector('#cmSend').onclick = send;
   el.querySelector('#cmIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+  el.querySelector('#cmImg').onclick = () => el.querySelector('#cmFile').click();
+  el.querySelector('#cmFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
+  list.onclick = e => { if (e.target.classList.contains('cimg')) photoViewer(e.target.src); };
   el.querySelector('#cmCls').onclick = () => el.remove();
   el.onclick = e => { if (e.target === el) el.remove(); };
   el.querySelector('#cmIn').focus();
@@ -2014,8 +2100,6 @@ function settings() {
       <div class="hqin"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="bdayIn" type="date" value="${me.user.bday || ''}"><button id="bdayBtn" class="mini">🎂</button></div>
       <div class="hsub" style="margin-top:-6px">↑ tanggal lahirmu — dia bakal diingetin pas ultahmu deket</div>
-      <div class="muted" style="text-align:left;font-size:12px">Mood kamu:</div>
-      <div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div>
       <div class="hsub" style="margin-top:4px">🔕 jam tenang — kangen & ping ditahan (misal 23 → 7):</div>
       <div class="hqin">
         <select id="dndF" style="flex:1"><option value="" ${me.user.dnd_from == null ? 'selected' : ''}>— dari</option>${Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${me.user.dnd_from === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>`).join('')}</select>
