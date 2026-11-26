@@ -727,6 +727,9 @@ io.on('connection', (socket) => {
     socket.to(u.pair_id).emit('partner:status', { online: true });
   }
 
+  // sinkron jam — client ukur offset biar countdown bareng beneran serentak
+  socket.on('time:ping', (t0, cb) => { if (typeof cb === 'function') cb(Date.now()); });
+
   socket.on('location:update', ({ lat, lng }) => {
     if (typeof lat !== 'number' || typeof lng !== 'number') return;
     store.setLoc(u.id, lat, lng);
@@ -768,7 +771,12 @@ io.on('connection', (socket) => {
     touching.add(u.id);
     const partner = store.partnerOf(u);
     socket.to(u.pair_id).emit('touch:partner', { on: true });
-    if (partner && touching.has(partner.id)) io.to(u.pair_id).emit('touch:match');
+    if (partner && touching.has(partner.id)) { io.to(u.pair_id).emit('touch:match'); return; }
+    const now = Date.now();
+    if (partner && now - (lastMiss.get('tc' + u.id) || 0) > 20000) {
+      lastMiss.set('tc' + u.id, now);
+      pushPartner(u, { title: '🤲 Ryora Watch', body: `${u.name} lagi nyentuh layar — buka buat sentuh bareng!`, tag: 'touch' });
+    }
   });
   socket.on('touch:end', () => {
     touching.delete(u.id);
@@ -794,6 +802,7 @@ io.on('connection', (socket) => {
       suitPicks.delete(u.pair_id);
     } else {
       socket.to(u.pair_id).emit('suit:invite', { from: u.name });
+      pushPartner(u, { title: '✊ Ryora Watch', body: `${u.name} ngajak adu suit — giliran kamu milih!`, tag: 'suit' });
     }
   });
 
@@ -876,6 +885,7 @@ io.on('connection', (socket) => {
     if (now - (lastMiss.get('g' + u.id) || 0) < 10000) return;
     lastMiss.set('g' + u.id, now);
     socket.to(u.pair_id).emit('guess:start', { from: u.name });
+    pushPartner(u, { title: '🧩 Ryora Watch', body: `${u.name} ngajak tebak doodle — buka app!`, tag: 'guess' });
   });
   socket.on('guess:stroke', (d) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:stroke', d); });
   socket.on('guess:try', ({ text }) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:try', { from: u.name, text: String(text).slice(0, 60) }); });

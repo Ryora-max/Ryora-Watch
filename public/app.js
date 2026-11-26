@@ -14,6 +14,9 @@ let me = null, socket = null, map = null, markers = {}, trailLine = null, linkLi
 let currentTab = 'home', remindTimer = null, tapCount = 0, tapTimer = null;
 let partnerLoc = null, myLoc = null, lastSync = null, schedCache = [], reminded = new Set(JSON.parse(localStorage.cw_reminded || '[]'));
 let partnerOnline = false, partnerSeen = null, deferredInstall = null;
+// offset jam server — biar countdown bareng serentak walau jam HP beda
+let clkOff = 0;
+const srvNow = () => Date.now() + clkOff;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 
 function toast(t, ms = 2600) {
@@ -26,7 +29,7 @@ const api = async (path, opts = {}) => {
   if (r.status === 401) { localStorage.removeItem('cw_token'); location.reload(); }
   return r.json();
 };
-const agoText = (ts) => { const m = Math.round((Date.now() - ts) / 60000); if (m < 1) return 'baru saja'; if (m < 60) return m + ' mnt lalu'; if (m < 1440) return Math.round(m / 60) + ' jam lalu'; return Math.round(m / 1440) + ' hari lalu'; };
+const agoText = (ts) => { const m = Math.max(0, Math.round((srvNow() - ts) / 60000)); if (m < 1) return 'baru saja'; if (m < 60) return m + ' mnt lalu'; if (m < 1440) return Math.round(m / 60) + ' jam lalu'; return Math.round(m / 1440) + ' hari lalu'; };
 const distM = () => {
   if (!myLoc || !partnerLoc || typeof L === 'undefined') return null;
   return L.latLng(myLoc.lat, myLoc.lng).distanceTo([partnerLoc.lat, partnerLoc.lng]);
@@ -272,7 +275,12 @@ function banner(t) {
 function connectSocket() {
   socket?.disconnect();
   socket = io({ auth: { token } });
-  socket.on('connect', () => { if (myLoc) socket.emit('location:update', myLoc); conn('ok'); });
+  socket.on('connect', () => {
+    if (myLoc) socket.emit('location:update', myLoc);
+    conn('ok');
+    const t0 = Date.now();
+    socket.emit('time:ping', t0, (srv) => { clkOff = srv - Math.round((t0 + Date.now()) / 2); });
+  });
   socket.on('disconnect', () => conn('off'));
   socket.on('connect_error', () => conn('off'));
   socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; updateSeen(); });
@@ -359,7 +367,7 @@ function connectSocket() {
     const t = el.querySelector('#focT');
     const end = at + dur;
     const tick = setInterval(() => {
-      const now = Date.now();
+      const now = srvNow();
       if (now < at) { t.textContent = Math.ceil((at - now) / 1000); return; }
       const left = Math.max(0, end - now);
       const m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
@@ -445,7 +453,7 @@ function connectSocket() {
     ding(); navigator.vibrate?.([200, 100, 200, 100, 500]);
     const n = el.querySelector('.nbn');
     const tick = setInterval(() => {
-      const left = Math.ceil((at - Date.now()) / 1000);
+      const left = Math.ceil((at - srvNow()) / 1000);
       if (left <= 0) { n.textContent = '▶️ PLAY!'; ding(); clearInterval(tick); setTimeout(() => el.remove(), 6000); }
       else n.textContent = left;
     }, 200);
@@ -1066,12 +1074,18 @@ async function renderHome(v) {
       <div class="hphotos" id="hphotos">` +
         (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(pname())}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
       `</div>
-      <label class="hphotobtn">📷 Kirim foto<input type="file" id="hfile" accept="image/*" capture="environment" hidden></label>
+      <div class="hqin" style="gap:8px">
+        <label class="hphotobtn" style="flex:1;margin:0">📷 Kamera<input type="file" id="hfile" accept="image/*" capture="environment" hidden></label>
+        <label class="hphotobtn" style="flex:1;margin:0">🖼️ Galeri<input type="file" id="hgal" accept="image/*" hidden></label>
+      </div>
     </div>
     <div class="hcard">
       <div class="hlabel">🖼️ Kenangan <span class="hsub">(album kalian)</span></div>
       <div class="hphotos" id="hmems"></div>
-      <div class="hqin"><label class="hphotobtn" style="flex:1;margin:0">📷 Tambah kenangan<input type="file" id="mfile" accept="image/*" hidden></label></div>
+      <div class="hqin" style="gap:8px">
+        <label class="hphotobtn" style="flex:1;margin:0">📷 Kamera<input type="file" id="mfile" accept="image/*" capture="environment" hidden></label>
+        <label class="hphotobtn" style="flex:1;margin:0">🖼️ Galeri<input type="file" id="mgal" accept="image/*" hidden></label>
+      </div>
     </div>
     ${d.feed?.length ? `<div class="hcard"><div class="hlabel">⚡ Aktivitas kalian</div>
       ${d.feed.map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('')}
@@ -1160,38 +1174,28 @@ async function renderHome(v) {
     el.querySelectorAll('.mdel').forEach(x => x.onclick = async e => { e.stopPropagation(); await api('/memory/' + x.dataset.id, { method: 'DELETE' }); renderHome(v); });
     el.querySelectorAll('.hphoto img').forEach(img => { img.style.cursor = 'zoom-in'; img.onclick = () => photoViewer(img.src); });
   });
-  $('#mfile').onchange = (e) => {
+  const onPick = (e, maxDim, q, path, okMsg) => {
     const f = e.target.files[0]; if (!f) return;
     const img = new Image();
     img.onload = () => {
-      const s = Math.min(1, 800 / Math.max(img.width, img.height));
+      const s = Math.min(1, maxDim / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      const data = c.toDataURL('image/jpeg', .72);
+      const data = c.toDataURL('image/jpeg', q);
       const caption = prompt('Caption (opsional):') || '';
-      api('/memory', { method: 'POST', body: { img: data, caption } }).then(r => {
-        if (r.ok) { toast('Kenangan tersimpan 🖼️'); renderHome(v); } else toast(r.error || 'gagal simpan');
+      api(path, { method: 'POST', body: { img: data, caption } }).then(r => {
+        if (r.ok) { toast(okMsg); renderHome(v); } else toast(r.error || 'gagal simpan');
       });
       URL.revokeObjectURL(img.src);
     };
     img.src = URL.createObjectURL(f);
   };
-  $('#hfile').onchange = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    const img = new Image();
-    img.onload = () => {
-      const s = Math.min(1, 640 / Math.max(img.width, img.height));
-      const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      const data = c.toDataURL('image/jpeg', .62);
-      const caption = prompt('Caption (opsional):') || '';
-      api('/photo', { method: 'POST', body: { img: data, caption } }).then(r => {
-        if (r.ok) { toast('Foto terkirim 📸'); renderHome(v); } else toast(r.error || 'gagal kirim');
-      });
-      URL.revokeObjectURL(img.src);
-    };
-    img.src = URL.createObjectURL(f);
-  };
+  const memPick = (e) => onPick(e, 800, .72, '/memory', 'Kenangan tersimpan 🖼️');
+  const photoPick = (e) => onPick(e, 640, .62, '/photo', 'Foto terkirim 📸');
+  $('#mfile').onchange = memPick;
+  $('#mgal').onchange = memPick;
+  $('#hfile').onchange = photoPick;
+  $('#hgal').onchange = photoPick;
 }
 
 function photoViewer(src) {
@@ -1850,8 +1854,12 @@ function settings() {
         ${avHtml(me.user, 'big').replace('class="avatar', 'id="myAv" class="avatar')}
         <div class="avgrid">${AVATARS.map(a => `<button class="avpick ${me.user.avatar === a ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div>
       </div>
-      <button id="avUp" class="mini ghost" style="width:100%;font-size:12px">📷 atau pakai foto dari galeri</button>
+      <div class="hqin" style="gap:8px;margin-top:2px">
+        <button id="avCam" class="mini ghost" style="flex:1;font-size:12px">📷 Kamera</button>
+        <button id="avUp" class="mini ghost" style="flex:1;font-size:12px">🖼️ Galeri</button>
+      </div>
       <input id="avfile" type="file" accept="image/*" style="display:none">
+      <input id="avcamf" type="file" accept="image/*" capture="user" style="display:none">
       <div class="hqin"><input id="nameIn" placeholder="Nama kamu" maxlength="30" value="${esc(me.user.name)}"><button id="nameBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="statusIn" placeholder="Status kamu (misal: lagi sibuk 💼)" maxlength="40" value="${esc(me.user.status || '')}"><button id="statusBtn" class="mini">Simpan</button></div>
       <div class="hqin"><input id="bdayIn" type="date" value="${me.user.bday || ''}"><button id="bdayBtn" class="mini">🎂</button></div>
@@ -1895,14 +1903,17 @@ function settings() {
     await api('/profile', { method: 'POST', body: { avatar: b.dataset.a } });
     toast(`Avatar: ${b.dataset.a}`);
   });
-  // avatar dari galeri — buka crop editor dulu, geser + zoom sampai pas
+  // avatar dari kamera/galeri — buka crop editor dulu, geser + zoom sampai pas
   el.querySelector('#avUp').onclick = () => el.querySelector('#avfile').click();
-  el.querySelector('#avfile').onchange = (e) => {
+  el.querySelector('#avCam').onclick = () => el.querySelector('#avcamf').click();
+  const avPick = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     const img = new Image();
     img.onload = () => cropAvatar(img, el);
     img.src = URL.createObjectURL(f);
   };
+  el.querySelector('#avfile').onchange = avPick;
+  el.querySelector('#avcamf').onchange = avPick;
   el.querySelector('#nameBtn').onclick = async () => {
     const t = el.querySelector('#nameIn').value.trim(); if (!t) return toast('Nama kosong');
     me.user.name = t;
