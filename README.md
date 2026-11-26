@@ -1,4 +1,4 @@
-# Ryora Watch 🌊
+# LYNX LIFE by Ryora 🐾
 
 PWA couple-only companion — aplikasi berdua untuk kamu & pasangan. Express + Socket.IO + SQLite (libsql/Turso sync), installable di HP (Add to Home Screen).
 

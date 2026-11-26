@@ -66,7 +66,7 @@ const mkIcon = (c, letter = '') => L.divIcon({ html: `<div style="width:20px;hei
 // ---------- AUTH ----------
 function authScreen() {
   const urlCode = new URLSearchParams(location.search).get('join');
-  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
   <div class="card"><input id="name" placeholder="Nama kamu" maxlength="30"><button id="go">Masuk</button>
   <button class="ghost" id="rstBtn" style="margin-top:10px">🔑 Masuk dengan kode cadangan</button>
   <div id="rstBox" style="display:none;margin-top:10px"><input id="rstIn" placeholder="Tempel kode cadanganmu"><button id="rstGo" class="mini">Pulihkan akun</button></div>
@@ -102,7 +102,7 @@ function pairScreen(inviteCode) {
   clearInterval(pairPoll); pairPoll = null;
   if (inviteCode) {
     // Mode menunggu — auto-masuk begitu pasangan pakai kodenya
-    app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
+    app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
     <div class="card"><p class="muted">Kode undanganmu — kirim ke pasanganmu:</p>
       <div class="code" id="codeText">${inviteCode}</div>
       <button class="ghost" id="share">📤 Bagikan link undangan</button>
@@ -123,7 +123,7 @@ function pairScreen(inviteCode) {
     }, 3000);
     return;
   }
-  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="Ryora"><h1>Ryora Watch</h1>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
   <p class="muted">Hubungkan dengan pasanganmu</p>
   <div class="card"><button id="create">✨ Buat kode undangan</button>
   <div class="muted">— atau punya kode? —</div>
@@ -208,7 +208,7 @@ async function mainUI() {
     <button data-t="home" class="on">🏠<span>Home</span></button>
     <button data-t="map">🗺️<span>Peta</span></button>
     <button data-t="sched">📅<span>Jadwal</span></button>
-    <button data-t="miss">💓<span>Kangen</span></button>
+    <button data-t="miss">🎮<span>Main</span></button>
     <button data-t="ai">✦<span>AI</span></button>
     <button data-t="kita">✨<span>Kita</span></button>
   </nav>`;
@@ -299,7 +299,7 @@ function connectSocket() {
     if (isQuiet()) { toast(`💓 ${from} kangen kamu — lagi jam tenang 🔕`, 3000); refreshMissStat(); return; }
     navigator.vibrate?.(Array(pattern).fill([250, 120]).flat());
     ding();
-    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from} kangen kamu 💓` }); } catch {}
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `${from} kangen kamu 💓` }); } catch {}
     $('#missText').textContent = `${from} kangen kamu${pattern > 1 ? ` (kode ×${pattern})` : ''} 💓`;
     heartRain(Math.min(pattern * 6, 40));
     $('#missOverlay').classList.remove('hidden');
@@ -321,7 +321,7 @@ function connectSocket() {
   });
   socket.on('voice:new', ({ from, dur }) => {
     ding();
-    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `🎤 ${from} kirim pesan suara (${dur}s)` }); } catch {}
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `🎤 ${from} kirim pesan suara (${dur}s)` }); } catch {}
     toast(`🎤 ${from} kirim pesan suara (${dur}s)`);
     loadVoices();
   });
@@ -330,7 +330,7 @@ function connectSocket() {
     navigator.vibrate?.([200, 100, 200]);
     ding();
     const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
-    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `${from}: ${label}` }); } catch {}
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `${from}: ${label}` }); } catch {}
     toast(`${from} — ${label}`, 4000);
   });
   // "lagi apa?" — dia minta foto live darimu
@@ -420,7 +420,7 @@ function connectSocket() {
   });
   socket.on('letter:new', ({ from }) => {
     ding(); navigator.vibrate?.([250, 100, 250]);
-    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Ryora Watch', { body: `💌 ${from} nulis surat buat kamu` }); } catch {}
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `💌 ${from} nulis surat buat kamu` }); } catch {}
     toast(`💌 ${from} nulis surat buat kamu!`, 5000);
     loadLetters();
   });
@@ -460,19 +460,6 @@ function connectSocket() {
   });
   socket.on('guess:end', () => guessMode(null));
   socket.on('pins:changed', () => { if (map) loadPins(); });
-  socket.on('nobar:go', ({ from, at }) => {
-    const el = document.createElement('div'); el.className = 'nobarOv';
-    el.innerHTML = `<div class="nobx"><b>🎬 NOBAR BARENG!</b><span class="nbn">3</span><i>ajakan ${esc(from)} — tekan PLAY pas hitungan habis!</i></div>`;
-    document.body.appendChild(el);
-    ding(); navigator.vibrate?.([200, 100, 200, 100, 500]);
-    const n = el.querySelector('.nbn');
-    const tick = setInterval(() => {
-      const left = Math.ceil((at - srvNow()) / 1000);
-      if (left <= 0) { n.textContent = '▶️ PLAY!'; ding(); clearInterval(tick); setTimeout(() => el.remove(), 6000); }
-      else n.textContent = left;
-    }, 200);
-    el.onclick = () => { clearInterval(tick); el.remove(); };
-  });
   socket.on('tod:card', ({ mode, text, from }) => {
     ding(); navigator.vibrate?.(200);
     const el = $('#todState');
@@ -719,8 +706,7 @@ function show(tab) {
           <button id="guessBtn" class="mini ghost" style="width:100%">✏️ Mulai menggambar</button>
         </div>
         <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px">💘<span>Quiz "seberapa kenal"</span></button>
-        <div id="wkScore" class="hsub" style="text-align:center;min-height:14px"></div>
-        <button id="nobar" class="sbtn" style="--c:#ff7fb0;width:100%;margin-top:8px">🎬<span>Nobar bareng — play serentak</span></button>
+        <div class="league" id="league"></div>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
       <div class="msect"><b>Kirim sesuatu</b>
@@ -751,19 +737,22 @@ function show(tab) {
     const tOff = () => { socket.emit('touch:end'); tb.classList.remove('on'); setTimeout(() => { const s = $('#touchState'); if (s && s.textContent.startsWith('menunggu')) s.textContent = ''; }, 600); };
     tb.onpointerdown = tOn; tb.onpointerup = tOff; tb.onpointerleave = tOff; tb.onpointercancel = tOff;
     $$('.tod').forEach(b => b.onclick = () => socket.emit('tod:request', { mode: b.dataset.m }));
-    $('#nobar').onclick = () => { socket.emit('nobar:start'); toast(`Ngajak ${pname()} nobar… 🎬`); };
+
     $('#focusBtn').onclick = () => { socket.emit('focus:start', { dur: 25 }); toast(`Ngajak ${pname()} fokus bareng ⏱️`); };
     $('#tttBtn').onclick = () => { if (!tttG?.done) { socket.emit('ttt:invite'); $('#tttState').textContent = `nunggu ${pname()} terima… ⏳`; } else socket.emit('ttt:again'); };
     if (tttG) renderTtt(tttG);
     $('#guessBtn').onclick = () => { socket.emit('guess:start'); guessMode('draw'); };
     $('#quizBtn').onclick = quizMenu;
-    // leaderboard mingguan
-    api('/scores/week').then(sc => {
-      const el = $('#wkScore'); if (!el || !sc) return;
-      const parts = [];
-      if (sc.suit) parts.push(`✊ ${sc.suit.me}–${sc.suit.them}`);
-      if (sc.ttt) parts.push(`⭕ ${sc.ttt.me}–${sc.ttt.them}`);
-      el.textContent = parts.length ? `🏅 minggu ini — ${parts.join(' · ')}${parts.some(p => +p.match(/(\d+)/)[1] < +p.match(/–(\d+)/)[1]) ? '' : ''}` : '';
+    // 🏅 LOVE LEAGUE — poin aktivitas bulan ini + tier
+    api('/league').then(lg => {
+      const el = $('#league'); if (!el || !lg?.me) return;
+      const row = (p, mine) => `<div class="lgrow">
+        <span class="lgtier">${p.icon}</span>
+        <div class="lginfo"><b>${mine ? 'Kamu' : esc(p.name)}</b><span>${p.tier} · ${p.pts} poin${p.next ? ` · next ${p.next}` : ' · MAX'}</span>
+          <div class="lgbar"><i style="width:${p.next ? Math.min(100, Math.round(p.pts / p.next * 100)) : 100}%"></i></div></div>
+        <span class="lgpts">${p.pts}</span></div>`;
+      const lead = lg.them ? (lg.me.pts > lg.them.pts ? '🔥 kamu unggul — pertahankan!' : lg.me.pts < lg.them.pts ? '😤 dia unggul — kejar!' : '🤝 imbang — gas terus!') : '';
+      el.innerHTML = `<div class="hlabel" style="text-align:center;margin-bottom:6px">🏅 LOVE LEAGUE · ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</div>` + row(lg.me, 1) + (lg.them ? row(lg.them, 0) : '') + `<div class="hsub" style="text-align:center;margin-top:6px">${lead}</div>`;
     }).catch(() => {});
     setupDoodle();
     $('#capBtn2').onclick = capsuleMenu;
@@ -788,6 +777,10 @@ function show(tab) {
       </div>
       <div id="scal" style="display:none"></div>
       <div id="slist"></div>
+      <div class="msect" style="margin-top:14px"><b>🎯 Disiplin bareng <span class="hsub">— streak 🔥 kalau dua-duanya ✓</span></b>
+        <div id="habitList"><div class="hsub">…</div></div>
+        <div class="hqin"><input id="habIn" placeholder="Habit baru (misal: minum air 💧)" maxlength="60"><button id="habAdd" class="mini">＋</button></div>
+      </div>
       <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
         <div class="hqin"><input id="bucketIn" placeholder="Impian bareng (misal: nonton aurora)" maxlength="120"><button id="bucketAdd" class="mini">+</button></div>
         <div id="blist"></div></div>
@@ -802,7 +795,13 @@ function show(tab) {
     $('#segCal').onclick = () => { $('#segCal').classList.add('on'); $('#segList').classList.remove('on'); $('#slist').style.display = 'none'; $('#scal').style.display = ''; renderCal(); };
     $('#bucketAdd').onclick = addBucket;
     $('#bucketIn').onkeydown = e => { if (e.key === 'Enter') addBucket(); };
-    loadSchedules(); loadBucket(); return;
+    $('#habAdd').onclick = async () => {
+      const t = $('#habIn').value.trim(); if (!t) return;
+      const r = await api('/habit', { method: 'POST', body: { name: t } });
+      if (r.error) toast(r.error); else { $('#habIn').value = ''; loadHabits(); }
+    };
+    $('#habIn').onkeydown = e => { if (e.key === 'Enter') $('#habAdd').click(); };
+    loadSchedules(); loadBucket(); loadHabits(); return;
   }
   if (tab === 'ai') {
     v.innerHTML = `<div id="chat">
@@ -859,13 +858,23 @@ function renderKita(v) {
       <div class="hsub" style="margin-top:2px">lagu kalian:</div>
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
+    <div class="msect"><b>💰 Dompet kalian <span class="hsub">— bulan ${new Date().toLocaleDateString('id-ID', { month: 'long' })}</span></b>
+      <div class="expsum" id="expSum"><div class="hsub">…</div></div>
+      <div class="hqin"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
+      <input id="expNote" placeholder="buat apa? (makan, jajan, nabung 💕)" maxlength="80">
+      <div class="hqin" style="gap:8px">
+        <button id="expInBtn" class="mini" style="flex:1">＋ Masuk</button>
+        <button id="expOutBtn" class="mini ghost" style="flex:1">− Keluar</button>
+      </div>
+      <div id="expList"></div>
+    </div>
     <div class="msect"><b>📊 Statistik kalian</b>
       <div class="statgrid" id="statGrid"><div class="hsub">memuat…</div></div>
     </div>
-    <div class="msect"><b>🎨 Tema</b>
+    <div class="msect"><b>🎨 Tampilan</b>
       <div class="themrow">${[['', '🌊', 'Langit'], ['dark', '🌙', 'Gelap'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
-    <details class="msect mfold"><summary>📦 Lainnya</summary>
+    <details class="msect mfold"><summary>📦 Arsip &amp; Lainnya</summary>
       <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
       <div id="bakBox" style="display:none" class="bakbox">
         <div class="hsub">Simpan kode ini baik-baik — kalau ganti HP / data kehapus, masuk pakai kode ini biar akun &amp; pair-mu balik.</div>
@@ -880,6 +889,7 @@ function renderKita(v) {
       ${!deferredInstall && /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone ? '<button id="iosInstall" class="ghost">📲 Cara install di iPhone</button>' : ''}
       <button id="brk" class="ghost" style="border-color:var(--accent);color:var(--accent)">💔 Putus pair</button>
     </details>
+    <div class="appcredit">LYNX LIFE <b>by Ryora</b> 🐾<span>dibuat dengan 💙 buat kalian berdua</span></div>
   </div>`;
   const q = (s) => v.querySelector(s);
   q('#petBtn').onclick = async () => {
@@ -900,6 +910,33 @@ function renderKita(v) {
     await api('/song', { method: 'POST', body: { text: t } });
     me.pair.song = t; toast(t ? `🎵 "${t}" — lagu kalian!` : 'Lagu dihapus');
   };
+  // 💰 dompet kalian
+  const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+  const loadExp = async () => {
+    const sumEl = q('#expSum'), listEl = q('#expList'); if (!sumEl || !listEl) return;
+    const d = await api('/expenses').catch(() => null); if (!sumEl.isConnected) return;
+    if (!d) return;
+    const s = d.sum || {};
+    sumEl.innerHTML = `<div class="expchip in">↑<div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
+      <div class="expchip out">↓<div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
+      <div class="expchip bal">💰<div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
+    listEl.innerHTML = (d.list || []).length ? d.list.slice(0, 12).map(e => `<div class="exprow">
+      <span class="expk ${e.kind}">${e.kind === 'in' ? '＋' : '−'}</span>
+      <div class="expinfo"><b>${esc(e.note || 'tanpa catatan')}</b><span>${e.mine ? 'kamu' : esc(e.by_name)} · ${agoText(e.ts)}</span></div>
+      <b class="expamt ${e.kind}">${rp(e.amount)}</b>
+      ${e.mine ? `<b class="hdel expdel" data-id="${e.id}">×</b>` : ''}</div>`).join('') : '<div class="hsub">belum ada catatan — mulai catat bareng 💰</div>';
+    listEl.querySelectorAll('.expdel').forEach(b => b.onclick = async () => { await api('/expense/' + b.dataset.id, { method: 'DELETE' }); loadExp(); });
+  };
+  const addExp = async (kind) => {
+    const amt = +q('#expAmt').value;
+    if (!amt || amt <= 0) return toast('Isi jumlahnya dulu');
+    const r = await api('/expense', { method: 'POST', body: { kind, amount: amt, note: q('#expNote').value.trim() } });
+    if (r.ok) { q('#expAmt').value = ''; q('#expNote').value = ''; toast(kind === 'in' ? `＋ ${rp(amt)} masuk 💰` : `− ${rp(amt)} keluar`); loadExp(); }
+    else toast(r.error || 'gagal');
+  };
+  q('#expInBtn').onclick = () => addExp('in');
+  q('#expOutBtn').onclick = () => addExp('out');
+  loadExp();
   q('.themrow') && v.querySelectorAll('.tswatch').forEach(b => b.onclick = () => {
     document.documentElement.dataset.theme = b.dataset.t;
     localStorage.cw_theme = b.dataset.t;
@@ -1089,11 +1126,6 @@ async function renderHome(v) {
       <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
     </div>
     <div class="hcard">
-      <div class="hlabel">🎯 Habit bareng <span class="hsub">streak 🔥 kalau dua-duanya ✓</span></div>
-      <div id="habitList"><div class="hsub">…</div></div>
-      <div class="hqin"><input id="habIn" placeholder="Habit baru (misal: minum air 💧)" maxlength="60"><button id="habAdd" class="mini">＋</button></div>
-    </div>
-    <div class="hcard">
       <div class="hlabel">📸 Foto hari ini</div>
       <div class="hphotos" id="hphotos">` +
         (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(pname())}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
@@ -1191,24 +1223,6 @@ async function renderHome(v) {
   $('#chatSend').onclick = () => sendChat($('#chatIn'));
   $('#chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat($('#chatIn')); };
   $('#chatAll').onclick = chatModal;
-  // 🎯 habit bareng
-  const loadHabits = async () => {
-    const el = $('#habitList'); if (!el) return;
-    const hs = await api('/habits').catch(() => []); if (!el.isConnected) return;
-    el.innerHTML = (hs || []).map(h => `<div class="habrow">
-      <button class="habcheck ${h.mine ? 'on' : ''}" data-id="${h.id}" title="Check">${h.mine ? '✅' : '⬜'}</button>
-      <div class="habinfo"><b>${esc(h.name)}</b><span>${h.theirs ? '💗 dia udah' : '💭 dia belum'}${h.streak ? ` · 🔥 ${h.streak} hari` : ''}</span></div>
-      <b class="hdel" data-id="${h.id}" title="Hapus">×</b></div>`).join('') || '<div class="hsub">belum ada habit — bikin satu yuk 🎯</div>';
-    el.querySelectorAll('.habcheck').forEach(b => b.onclick = async () => { await api('/habit/' + b.dataset.id + '/check', { method: 'POST' }); loadHabits(); });
-    el.querySelectorAll('.hdel').forEach(b => b.onclick = async () => { if (confirm('Hapus habit ini?')) { await api('/habit/' + b.dataset.id, { method: 'DELETE' }); loadHabits(); } });
-  };
-  loadHabits();
-  $('#habAdd').onclick = async () => {
-    const t = $('#habIn').value.trim(); if (!t) return;
-    const r = await api('/habit', { method: 'POST', body: { name: t } });
-    if (r.error) toast(r.error); else { $('#habIn').value = ''; loadHabits(); }
-  };
-  $('#habIn').onkeydown = e => { if (e.key === 'Enter') $('#habAdd').click(); };
 
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
@@ -1627,6 +1641,17 @@ async function addBucket() {
   $('#bucketIn').value = ''; loadBucket();
 }
 
+async function loadHabits() {
+  const el = $('#habitList'); if (!el) return;
+  const hs = await api('/habits').catch(() => []); if (!el.isConnected) return;
+  el.innerHTML = (hs || []).map(h => `<div class="habrow">
+    <button class="habcheck ${h.mine ? 'on' : ''}" data-id="${h.id}" title="Check">${h.mine ? '✅' : '⬜'}</button>
+    <div class="habinfo"><b>${esc(h.name)}</b><span>${h.theirs ? '💗 dia udah' : '💭 dia belum'}${h.streak ? ` · 🔥 ${h.streak} hari` : ''}</span></div>
+    <b class="hdel" data-id="${h.id}" title="Hapus">×</b></div>`).join('') || '<div class="hsub">belum ada habit — bikin satu yuk 🎯</div>';
+  el.querySelectorAll('.habcheck').forEach(b => b.onclick = async () => { await api('/habit/' + b.dataset.id + '/check', { method: 'POST' }); loadHabits(); });
+  el.querySelectorAll('.hdel').forEach(b => b.onclick = async () => { if (confirm('Hapus habit ini?')) { await api('/habit/' + b.dataset.id, { method: 'DELETE' }); loadHabits(); } });
+}
+
 async function checkReminders() {
   if (!schedCache.length) schedCache = await api('/schedules');
   refreshMissStat();
@@ -1851,7 +1876,7 @@ async function wrappedModal(period) {
   if (!w || w.error) return toast('gagal load rekap');
   const el = document.createElement('div'); el.className = 'wmodal';
   el.innerHTML = `<div class="wcard">
-    <div class="wlogo">🌊 Ryora</div>
+    <div class="wlogo">🐾 LYNX LIFE</div>
     <div class="wmonth">${w.month}</div>
     <div class="wnames">${esc(w.me)} 💙 ${esc(w.partner || '?')}</div>
     <div class="wgrid">
@@ -1878,7 +1903,7 @@ async function wrappedModal(period) {
     x.fillStyle = g; x.fillRect(0, 0, 540, 960);
     x.textAlign = 'center';
     x.fillStyle = '#5cc8ff'; x.font = '600 26px sans-serif';
-    x.fillText('🌊 Ryora', 270, 100);
+    x.fillText('🐾 LYNX', 270, 100);
     x.fillStyle = '#fff'; x.font = '700 48px sans-serif';
     x.fillText(w.month, 270, 165);
     x.font = '400 25px sans-serif'; x.fillStyle = 'rgba(255,255,255,.85)';
@@ -1896,7 +1921,7 @@ async function wrappedModal(period) {
     x.fillStyle = 'rgba(255,255,255,.65)'; x.font = '400 21px sans-serif';
     x.fillText(`hari ke-${w.days} bareng · ${w.miss_me}x ${w.me} kangen · ${w.miss_them}x ${w.partner || '?'} kangen`, 270, 830);
     x.fillStyle = 'rgba(92,200,255,.5)'; x.font = '400 16px sans-serif';
-    x.fillText('dibuat dengan 💙 di Ryora Watch', 270, 890);
+    x.fillText('dibuat dengan 💙 di LYNX LIFE', 270, 890);
     const a = document.createElement('a');
     a.download = `ryora-${w.month.replace(/\s/g, '-').toLowerCase()}.png`;
     a.href = c.toDataURL('image/png'); a.click();
@@ -2087,7 +2112,7 @@ async function missHistory() {
 function tour() {
   if (localStorage.cw_toured) return;
   const steps = [
-    ['🌊', `Ryora Watch`, `Ruang berdua kamu & ${esc(pname())}. Semua yang kalian butuhin buat LDR ada di sini.`],
+    ['🌊', `LYNX LIFE`, `Ruang berdua kamu & ${esc(pname())}. Semua yang kalian butuhin buat LDR ada di sini.`],
     ['🏠', 'Home', `Lihat status dia, jawab pertanyaan harian, kirim catatan kecil & foto. Feed aktivitas kalian juga ada di sini.`],
     ['💓', 'Kangen', `Cara bilang kangen TANPA ngetik: tap 💓, tahan sentuh bareng, adu suit, truth or dare, voice note, doodle, surat.`],
     ['🗺️', 'Peta & Jadwal', `Lokasi live dia (perlu izin GPS) + jadwal & kalender bareng, bucket list mimpi kalian.`],

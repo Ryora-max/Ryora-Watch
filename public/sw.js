@@ -1,4 +1,4 @@
-const CACHE = 'ryora-v57';
+const CACHE = 'ryora-v58';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => e.waitUntil(clients.claim().then(() => caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))))));
@@ -24,7 +24,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch {}
-  e.waitUntil(self.registration.showNotification(d.title || '💓 Ryora Watch', {
+  e.waitUntil(self.registration.showNotification(d.title || '💓 LYNX LIFE', {
     body: d.body || 'Ada kabar dari pasanganmu',
     icon: '/icon.svg', badge: '/icon.svg',
     tag: d.tag || 'ryora', renotify: true,

@@ -10,7 +10,22 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="150" fill="#0d3358" stroke="url(#g)" stroke-width="10" opacity=".95"/>
-  <path d="M186 270 q35 -30 70 0 t70 0" stroke="url(#g)" stroke-width="26" fill="none" stroke-linecap="round"/>
-  <path d="M186 310 q35 -30 70 0 t70 0" stroke="url(#g)" stroke-width="26" fill="none" stroke-linecap="round" opacity=".55"/>
+  <!-- lynx: telinga runcing dengan jambul khas -->
+  <path d="M172 210 L138 96 L128 64 L144 92 L210 178 Z" fill="url(#g)"/>
+  <path d="M340 210 L374 96 L384 64 L368 92 L302 178 Z" fill="url(#g)"/>
+  <path d="M138 96 L118 60" stroke="url(#g)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M374 96 L394 60" stroke="url(#g)" stroke-width="14" stroke-linecap="round"/>
+  <!-- kepala -->
+  <circle cx="256" cy="286" r="128" fill="#0d3358" stroke="url(#g)" stroke-width="10"/>
+  <!-- mata: dua titik -->
+  <circle cx="212" cy="270" r="17" fill="url(#g)"/>
+  <circle cx="300" cy="270" r="17" fill="url(#g)"/>
+  <!-- hidung + mulut -->
+  <path d="M248 308 h16 l-8 12 Z" fill="url(#g)"/>
+  <path d="M256 320 q0 16 -20 18 M256 320 q0 16 20 18" stroke="url(#g)" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <!-- kumis -->
+  <g stroke="url(#g)" stroke-width="8" stroke-linecap="round" opacity=".7">
+    <path d="M140 300 h-38"/><path d="M144 330 l-36 14"/>
+    <path d="M372 300 h38"/><path d="M368 330 l36 14"/>
+  </g>
 </svg>

@@ -122,7 +122,7 @@ app.post('/api/schedules', auth, (req, res) => {
   const rep = ['daily', 'weekly'].includes(repeat) ? repeat : null;
   store.addSchedule({ pair_id: req.user.pair_id, title: title.slice(0, 80), note, start, end, notify, by: req.user.id, repeat: rep });
   io.to(req.user.pair_id).emit('schedules:changed');
-  pushPartner(req.user, { title: '📅 Ryora Watch', body: `${req.user.name} nambah jadwal: ${title.slice(0, 60)}`, tag: 'sched' });
+  pushPartner(req.user, { title: '📅 LYNX LIFE', body: `${req.user.name} nambah jadwal: ${title.slice(0, 60)}`, tag: 'sched' });
   res.json({ ok: true });
 });
 app.delete('/api/schedules/:id', auth, (req, res) => {
@@ -334,7 +334,7 @@ app.post('/api/habit/:id/check', auth, (req, res) => {
   const has = store.habitChecks(h.id, today).some(c => c.user_id === req.user.id && c.day === today);
   if (has) store.habitUncheck(h.id, req.user.id, today); else store.habitCheck(h.id, req.user.id, today);
   io.to(req.user.pair_id).emit('home:changed');
-  if (!has) pushPartner(req.user, { title: '🎯 Ryora Watch', body: `${req.user.name} udah ✓ "${h.name}" — giliran kamu!`, tag: 'habit' });
+  if (!has) pushPartner(req.user, { title: '🎯 LYNX LIFE', body: `${req.user.name} udah ✓ "${h.name}" — giliran kamu!`, tag: 'habit' });
   res.json({ ok: true, checked: !has });
 });
 app.delete('/api/habit/:id', auth, (req, res) => {
@@ -342,6 +342,55 @@ app.delete('/api/habit/:id', auth, (req, res) => {
   store.delHabit(req.user.pair_id, req.params.id);
   io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
+});
+
+// --- dompet kalian — catat pemasukan & pengeluaran bareng ---
+app.get('/api/expenses', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ list: [], sum: {} });
+  const now = new Date();
+  const fromTs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const list = store.exps(req.user.pair_id, fromTs).map(e => ({ ...e, mine: e.user_id === req.user.id }));
+  const sum = { in: 0, out: 0, meIn: 0, meOut: 0, themIn: 0, themOut: 0 };
+  for (const e of list) {
+    sum[e.kind] = (sum[e.kind] || 0) + e.amount;
+    const k = e.user_id === req.user.id ? 'me' : 'them';
+    sum[k + (e.kind === 'in' ? 'In' : 'Out')] += e.amount;
+  }
+  sum.balance = (sum.in || 0) - (sum.out || 0);
+  res.json({ list: list.slice(0, 60), sum });
+});
+app.post('/api/expense', auth, (req, res) => {
+  const kind = req.body?.kind === 'in' ? 'in' : 'out';
+  const amount = Math.round(Math.abs(+req.body?.amount || 0));
+  const note = String(req.body?.note || '').trim().slice(0, 80);
+  if (!req.user.pair_id || !amount || amount > 1e9) return res.status(400).json({ error: 'invalid' });
+  store.addExp(req.user.pair_id, req.user.id, kind, amount, note);
+  io.to(req.user.pair_id).emit('home:changed');
+  const lbl = kind === 'out' ? 'pengeluaran' : 'pemasukan';
+  pushPartner(req.user, { title: '💰 LYNX LIFE', body: `${req.user.name} catat ${lbl} Rp ${amount.toLocaleString('id-ID')}${note ? ` — ${note}` : ''}`, tag: 'exp' });
+  res.json({ ok: true });
+});
+app.delete('/api/expense/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ ok: true });
+  store.delExp(req.user.pair_id, req.params.id, req.user.id);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+
+// --- LOVE LEAGUE — poin aktivitas berdua bulan ini + tier ---
+app.get('/api/league', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ me: null, them: null });
+  const partner = store.partnerOf(req.user);
+  const now = new Date();
+  const since = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const c = store.leagueCounts(req.user.pair_id, since);
+  const pts = {};
+  const add = (arr, w) => (arr || []).forEach(r => { pts[r.uid] = (pts[r.uid] || 0) + r.n * w; });
+  add(c.miss, 1); add(c.games, 3); add(c.photos, 2); add(c.memories, 3);
+  add(c.msgs, 1); add(c.habits, 2); add(c.letters, 5); add(c.pins, 2);
+  const tier = (p) => p >= 150 ? ['👑', 'Lynx Legend'] : p >= 80 ? ['🐯', 'Lynx Hunter'] : p >= 30 ? ['🐾', 'Lynx Paw'] : ['🐣', 'Lynx Cub'];
+  const pack = (uid, name) => { const p = pts[uid] || 0; const [e, t] = tier(p); return { name, pts: p, tier: t, icon: e, next: p >= 150 ? null : p >= 80 ? 150 : p >= 30 ? 80 : 30 }; };
+  res.json({ me: pack(req.user.id, req.user.name), them: partner ? pack(partner.id, partner.name) : null });
 });
 
 // --- leaderboard mingguan ---
@@ -380,7 +429,7 @@ app.post('/api/quiz', auth, (req, res) => {
   if (ans.length < 3 || ans.some(a => !a)) return res.status(400).json({ error: 'invalid' });
   store.quizSet(req.user.pair_id, dayKey(), req.user.id, ans);
   io.to(req.user.pair_id).emit('home:changed');
-  pushPartner(req.user, { title: '💘 Ryora Watch', body: `${req.user.name} isi quiz "seberapa kenal" — coba tebak jawabannya!`, tag: 'quiz' });
+  pushPartner(req.user, { title: '💘 LYNX LIFE', body: `${req.user.name} isi quiz "seberapa kenal" — coba tebak jawabannya!`, tag: 'quiz' });
   res.json({ ok: true });
 });
 app.post('/api/quiz/guess', auth, (req, res) => {
@@ -393,7 +442,7 @@ app.post('/api/quiz/guess', auth, (req, res) => {
   store.quizGuessSet(q.id, req.user.id, gs);
   const answers = JSON.parse(q.answers);
   io.to(req.user.pair_id).emit('home:changed');
-  pushPartner(req.user, { title: '💘 Ryora Watch', body: `${req.user.name} udah nebak quiz-mu — lihat hasilnya!`, tag: 'quiz' });
+  pushPartner(req.user, { title: '💘 LYNX LIFE', body: `${req.user.name} udah nebak quiz-mu — lihat hasilnya!`, tag: 'quiz' });
   res.json({ ok: true, answers });
 });
 
@@ -600,7 +649,7 @@ app.post('/api/voice', auth, (req, res) => {
   if (!audio.startsWith('data:audio/') || audio.length > 900000) return res.status(400).json({ error: 'audio terlalu besar' });
   store.addVoice(req.user.pair_id, req.user.id, audio, dur);
   io.to(req.user.pair_id).emit('voice:new', { from: req.user.name, dur });
-  pushPartner(req.user, { title: '🎤 Ryora Watch', body: `${req.user.name} kirim pesan suara (${dur}s)`, tag: 'voice' });
+  pushPartner(req.user, { title: '🎤 LYNX LIFE', body: `${req.user.name} kirim pesan suara (${dur}s)`, tag: 'voice' });
   res.json({ ok: true });
 });
 app.delete('/api/voice/:id', auth, (req, res) => {
@@ -637,7 +686,7 @@ app.post('/api/note', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setNote(req.user.id, req.user.pair_id, String(req.body?.text || '').slice(0, 200));
   io.to(req.user.pair_id).emit('home:changed');
-  pushPartner(req.user, { title: '📝 Ryora Watch', body: `${req.user.name} ninggalin catatan buat kamu`, tag: 'note' });
+  pushPartner(req.user, { title: '📝 LYNX LIFE', body: `${req.user.name} ninggalin catatan buat kamu`, tag: 'note' });
   res.json({ ok: true });
 });
 
@@ -645,7 +694,7 @@ app.post('/api/daily/answer', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'no pair' });
   store.setAnswer(req.user.pair_id, dayKey(), req.user.id, String(req.body?.text || '').slice(0, 300));
   io.to(req.user.pair_id).emit('home:changed');
-  pushPartner(req.user, { title: '❓ Ryora Watch', body: `${req.user.name} udah jawab pertanyaan hari ini — giliran kamu!`, tag: 'answer' });
+  pushPartner(req.user, { title: '❓ LYNX LIFE', body: `${req.user.name} udah jawab pertanyaan hari ini — giliran kamu!`, tag: 'answer' });
   res.json({ ok: true });
 });
 
@@ -655,7 +704,7 @@ app.post('/api/photo', auth, (req, res) => {
   if (!img.startsWith('data:image/') || img.length > 400000) return res.status(400).json({ error: 'gambar terlalu besar' });
   store.setPhoto(req.user.pair_id, dayKey(), req.user.id, img, String(req.body?.caption || '').slice(0, 100));
   io.to(req.user.pair_id).emit('home:changed');
-  pushPartner(req.user, { title: '📸 Ryora Watch', body: `${req.user.name} kirim foto hari ini`, tag: 'photo' });
+  pushPartner(req.user, { title: '📸 LYNX LIFE', body: `${req.user.name} kirim foto hari ini`, tag: 'photo' });
   res.json({ ok: true });
 });
 
@@ -686,7 +735,7 @@ app.post('/api/letter', auth, (req, res) => {
   if (!text) return res.status(400).json({ error: 'invalid' });
   store.addLetter(req.user.pair_id, req.user.id, title, text);
   io.to(req.user.pair_id).emit('letter:new', { from: req.user.name });
-  pushPartner(req.user, { title: '💌 Ryora Watch', body: `${req.user.name} nulis surat buat kamu`, tag: 'letter' });
+  pushPartner(req.user, { title: '💌 LYNX LIFE', body: `${req.user.name} nulis surat buat kamu`, tag: 'letter' });
   res.json({ ok: true });
 });
 app.delete('/api/letter/:id', auth, (req, res) => {
@@ -823,7 +872,7 @@ io.on('connection', (socket) => {
     console.log(`[miss] ${u.name} → room ${u.pair_id} (${roomSize} sockets)`);
     socket.to(u.pair_id).emit('miss:receive', { from: u.name, pattern, ts: now });
     socket.emit('miss:sent');
-    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name} kangen kamu${pattern > 1 ? ` ×${pattern}` : ''}`, tag: 'miss', act: 'missback' });
+    pushPartner(u, { title: '💓 LYNX LIFE', body: `${u.name} kangen kamu${pattern > 1 ? ` ×${pattern}` : ''}`, tag: 'miss', act: 'missback' });
   });
 
   socket.on('care:send', ({ kind }) => {
@@ -834,7 +883,7 @@ io.on('connection', (socket) => {
     const kind2 = String(kind).slice(0, 20);
     socket.to(u.pair_id).emit('care:receive', { from: u.name, kind: kind2 });
     const labels = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' };
-    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name}: ${labels[kind2] || kind2}`, tag: 'care' });
+    pushPartner(u, { title: '💓 LYNX LIFE', body: `${u.name}: ${labels[kind2] || kind2}`, tag: 'care' });
   });
 
   socket.on('touch:start', () => {
@@ -846,7 +895,7 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (partner && now - (lastMiss.get('tc' + u.id) || 0) > 20000) {
       lastMiss.set('tc' + u.id, now);
-      pushPartner(u, { title: '🤲 Ryora Watch', body: `${u.name} lagi nyentuh layar — buka buat sentuh bareng!`, tag: 'touch' });
+      pushPartner(u, { title: '🤲 LYNX LIFE', body: `${u.name} lagi nyentuh layar — buka buat sentuh bareng!`, tag: 'touch' });
     }
   });
   socket.on('touch:end', () => {
@@ -873,7 +922,7 @@ io.on('connection', (socket) => {
       suitPicks.delete(u.pair_id);
     } else {
       socket.to(u.pair_id).emit('suit:invite', { from: u.name });
-      pushPartner(u, { title: '✊ Ryora Watch', body: `${u.name} ngajak adu suit — giliran kamu milih!`, tag: 'suit' });
+      pushPartner(u, { title: '✊ LYNX LIFE', body: `${u.name} ngajak adu suit — giliran kamu milih!`, tag: 'suit' });
     }
   });
 
@@ -895,7 +944,7 @@ io.on('connection', (socket) => {
     if (now - (lastMiss.get('n' + u.id) || 0) < 10000) return;
     lastMiss.set('n' + u.id, now);
     io.to(u.pair_id).emit('nobar:go', { from: u.name, at: now + 4000 });
-    pushPartner(u, { title: '🎬 Ryora Watch', body: `${u.name} ngajak nobar — gas!`, tag: 'nobar' });
+    pushPartner(u, { title: '🎬 LYNX LIFE', body: `${u.name} ngajak nobar — gas!`, tag: 'nobar' });
   });
 
   // --- "lagi apa?" — minta foto live dari pasangan ---
@@ -905,7 +954,7 @@ io.on('connection', (socket) => {
     if (now - (lastMiss.get('pr' + u.id) || 0) < 20000) return;
     lastMiss.set('pr' + u.id, now);
     socket.to(u.pair_id).emit('photo:ask', { from: u.name });
-    pushPartner(u, { title: '📸 Ryora Watch', body: `${u.name} mau lihat kamu lagi apa — kirim foto!`, tag: 'photoask' });
+    pushPartner(u, { title: '📸 LYNX LIFE', body: `${u.name} mau lihat kamu lagi apa — kirim foto!`, tag: 'photoask' });
   });
 
   // --- XOXO / tic-tac-toe realtime ---
@@ -916,7 +965,7 @@ io.on('connection', (socket) => {
     lastMiss.set('x' + u.id, now);
     tttInvites.set(u.pair_id, u.id);
     socket.to(u.pair_id).emit('ttt:invite', { from: u.name });
-    pushPartner(u, { title: '⭕ Ryora Watch', body: `${u.name} ngajak main XOXO!`, tag: 'ttt' });
+    pushPartner(u, { title: '⭕ LYNX LIFE', body: `${u.name} ngajak main XOXO!`, tag: 'ttt' });
   });
   socket.on('ttt:accept', () => {
     if (!u.pair_id) return;
@@ -956,7 +1005,7 @@ io.on('connection', (socket) => {
     if (now - (lastMiss.get('g' + u.id) || 0) < 10000) return;
     lastMiss.set('g' + u.id, now);
     socket.to(u.pair_id).emit('guess:start', { from: u.name });
-    pushPartner(u, { title: '🧩 Ryora Watch', body: `${u.name} ngajak tebak doodle — buka app!`, tag: 'guess' });
+    pushPartner(u, { title: '🧩 LYNX LIFE', body: `${u.name} ngajak tebak doodle — buka app!`, tag: 'guess' });
   });
   socket.on('guess:stroke', (d) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:stroke', d); });
   socket.on('guess:try', ({ text }) => { if (u.pair_id) socket.to(u.pair_id).emit('guess:try', { from: u.name, text: String(text).slice(0, 60) }); });
@@ -971,7 +1020,7 @@ io.on('connection', (socket) => {
     lastMiss.set('f' + u.id, now);
     const mins = [15, 25, 45, 60].includes(+dur) ? +dur : 25;
     io.to(u.pair_id).emit('focus:go', { from: u.name, at: now + 3000, dur: mins * 60000 });
-    pushPartner(u, { title: '⏱️ Ryora Watch', body: `${u.name} ngajak fokus bareng ${mins} menit!`, tag: 'focus' });
+    pushPartner(u, { title: '⏱️ LYNX LIFE', body: `${u.name} ngajak fokus bareng ${mins} menit!`, tag: 'focus' });
   });
 
   socket.on('disconnect', () => {
@@ -982,4 +1031,4 @@ io.on('connection', (socket) => {
   });
 });
 
-http.listen(PORT, () => console.log(`Ryora Watch → http://localhost:${PORT}`));
+http.listen(PORT, () => console.log(`LYNX LIFE → http://localhost:${PORT}`));

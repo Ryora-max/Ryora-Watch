@@ -112,6 +112,9 @@ CREATE TABLE IF NOT EXISTS habits (
 CREATE TABLE IF NOT EXISTS habit_checks (
   habit_id TEXT, user_id TEXT, day TEXT, ts INTEGER, PRIMARY KEY(habit_id, user_id, day)
 );
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT, kind TEXT, amount INTEGER, note TEXT, ts INTEGER
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -345,6 +348,23 @@ export const store = {
   habitCheck: (hid, uid, day) => db.prepare('INSERT OR IGNORE INTO habit_checks (habit_id,user_id,day,ts) VALUES (?,?,?,?)').run(hid, uid, day, Date.now()),
   habitUncheck: (hid, uid, day) => db.prepare('DELETE FROM habit_checks WHERE habit_id=? AND user_id=? AND day=?').run(hid, uid, day),
   habitChecks: (hid, days) => db.prepare('SELECT user_id, day FROM habit_checks WHERE habit_id=? AND day>=?').all(hid, days),
+
+  // --- dompet kalian (keuangan bareng) ---
+  addExp: (pairId, uid, kind, amount, note) => { db.prepare('INSERT INTO expenses (id,pair_id,user_id,kind,amount,note,ts) VALUES (?,?,?,?,?,?,?)').run(id(), pairId, uid, kind, amount, note, Date.now()); },
+  exps: (pairId, fromTs) => db.prepare('SELECT e.*, u.name by_name FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.pair_id=? AND e.ts>=? ORDER BY e.ts DESC').all(pairId, fromTs),
+  delExp: (pairId, expId, uid) => db.prepare('DELETE FROM expenses WHERE pair_id=? AND id=? AND user_id=?').run(pairId, expId, uid),
+
+  // --- love league: hitungan aktivitas per user bulan ini ---
+  leagueCounts: (pairId, since) => ({
+    miss: db.prepare('SELECT from_user uid, COUNT(*) n FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),
+    games: db.prepare('SELECT winner_id uid, game, COUNT(*) n FROM suit_results WHERE pair_id=? AND ts>=? AND winner_id!=\'draw\' GROUP BY winner_id, game').all(pairId, since),
+    photos: db.prepare('SELECT user_id uid, COUNT(*) n FROM photos WHERE pair_id=? AND ts>=? GROUP BY user_id').all(pairId, since),
+    memories: db.prepare('SELECT user_id uid, COUNT(*) n FROM memories WHERE pair_id=? AND ts>=? GROUP BY user_id').all(pairId, since),
+    msgs: db.prepare('SELECT user_id uid, COUNT(*) n FROM couple_msgs WHERE pair_id=? AND ts>=? GROUP BY user_id').all(pairId, since),
+    habits: db.prepare('SELECT c.user_id uid, COUNT(*) n FROM habit_checks c JOIN habits h ON h.id=c.habit_id WHERE h.pair_id=? AND c.ts>=? GROUP BY c.user_id').all(pairId, since),
+    letters: db.prepare('SELECT user_id uid, COUNT(*) n FROM letters WHERE pair_id=? AND ts>=? GROUP BY user_id').all(pairId, since),
+    pins: db.prepare('SELECT user_id uid, COUNT(*) n FROM pins WHERE pair_id=? AND ts>=? GROUP BY user_id').all(pairId, since),
+  }),
 
   // --- quiz kenal ---
   quizGet: (pairId, day, uid) => db.prepare('SELECT q.*, u.name by_name FROM quiz q JOIN users u ON u.id=q.user_id WHERE q.pair_id=? AND q.day=? AND q.user_id=?').get(pairId, day, uid),
