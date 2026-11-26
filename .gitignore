@@ -20,3 +20,4 @@ shot_*.png
 ryora-server.log
 tools/
 tunnel.log
+test/tmp/

@@ -1,0 +1,26 @@
+const puppeteer = require('puppeteer');
+const B = 'http://localhost:3000';
+const post = (p, b, t) => fetch(B + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(t ? { 'x-token': t } : {}) }, body: JSON.stringify(b || {}) }).then(r => r.json());
+(async () => {
+  const ua = await post('/api/register', { name: 'Sea' });
+  const ub = await post('/api/register', { name: 'Tiara' });
+  const pc = await post('/api/pair/create', {}, ua.token);
+  await post('/api/pair/join', { code: pc.code }, ub.token);
+  await post('/api/msg', { text: 'hai sayang' }, ua.token);
+  const browser = await puppeteer.launch({ headless: 'new', userDataDir: 'C:/Invest/test/tmp/y' + Date.now() });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, isMobile: true });
+  page.on('pageerror', e => console.log('ERR', e.message.slice(0, 120)));
+  await page.evaluateOnNewDocument(t => { localStorage.cw_setup_done = '1'; localStorage.cw_token = t; localStorage.cw_toured = '1'; }, ua.token);
+  await page.goto(B, { waitUntil: 'domcontentloaded' });
+  await new Promise(r => setTimeout(r, 4500));
+  await page.screenshot({ path: 'test/p_home.png' });
+  await page.evaluate(() => document.querySelector('[data-t="uang"]').click());
+  await new Promise(r => setTimeout(r, 1300));
+  await page.screenshot({ path: 'test/p_uang.png' });
+  await page.evaluate(() => document.querySelector('[data-t="kita"]').click());
+  await new Promise(r => setTimeout(r, 1300));
+  await page.screenshot({ path: 'test/p_kita.png' });
+  await browser.close();
+  console.log('done');
+})().catch(e => { console.log('FATAL', e.message); process.exit(1); });

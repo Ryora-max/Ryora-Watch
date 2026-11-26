@@ -699,7 +699,7 @@ function show(tab) {
     const bulan = new Date().toLocaleDateString('id-ID', { month: 'long' });
     v.innerHTML = `<div class="list">
       <div class="hcard">
-        <div class="hlabel">🏦 Tabungan bersama <span class="hsub">— pot bareng, buat target kalian</span></div>
+        <div class="hlabel"><em class="ic">🏦</em> Tabungan bersama <span class="hsub">— pot bareng, buat target kalian</span></div>
         <div class="savtop" id="savTop"><div class="hsub">…</div></div>
         <div id="goalBox"></div>
         <div id="goalForm" style="display:none"><div class="hqin"><input id="goalName" placeholder="target buat apa? (date, jalan-jalan)" maxlength="60"><input id="goalAmt" type="number" inputmode="numeric" placeholder="Rp target" style="max-width:110px"></div>
@@ -712,7 +712,7 @@ function show(tab) {
         <div id="savList" style="margin-top:6px"></div>
       </div>
       <div class="hcard">
-        <div class="hlabel">💰 Uang harian <span class="hsub">— masuk/keluar ${bulan} (pribadi, keliatan siapa catat)</span></div>
+        <div class="hlabel"><em class="ic">💰</em> Uang harian <span class="hsub">— masuk/keluar ${bulan} (pribadi, keliatan siapa catat)</span></div>
         <div class="expsum" id="expSum"><div class="hsub">…</div></div>
         <div id="perSum" style="margin-top:8px"></div>
         <div class="hqin" style="margin-top:10px"><input id="expAmt" type="number" inputmode="numeric" placeholder="Rp jumlah" min="1" max="999999999"></div>
@@ -722,7 +722,7 @@ function show(tab) {
           <button id="expOutBtn" class="mini ghost" style="flex:1">− Pengeluaran</button>
         </div>
       </div>
-      <div class="msect"><b>🧾 Riwayat ${bulan}</b><div id="expList"><div class="hsub">…</div></div></div>
+      <div class="msect"><b><em class="ic">🧾</em> Riwayat ${bulan}</b><div id="expList"><div class="hsub">…</div></div></div>
     </div>`;
     const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
     const row = (e) => `<div class="exprow">
@@ -737,9 +737,9 @@ function show(tab) {
       const s = d.daily || {}, sv = d.saving || {};
       savEl.innerHTML = `<div class="savbal">${rp(sv.balance || 0)}</div>
         <div class="savsplit"><span>💙 kamu nabung <b>${rp(sv.me || 0)}</b></span><span>💗 dia nabung <b>${rp(sv.them || 0)}</b></span></div>`;
-      sumEl.innerHTML = `<div class="expchip in">↑<div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
-        <div class="expchip out">↓<div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
-        <div class="expchip bal">💰<div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
+      sumEl.innerHTML = `<div class="expchip in"><em class="ic sm">↑</em><div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
+        <div class="expchip out"><em class="ic sm">↓</em><div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
+        <div class="expchip bal"><em class="ic sm">💰</em><div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
       perEl.innerHTML = `<div class="persplit"><span>💙 kamu <b>↑${rp(s.meIn || 0)}</b> <b>↓${rp(s.meOut || 0)}</b></span><span>💗 ${esc(pname())} <b>↑${rp(s.themIn || 0)}</b> <b>↓${rp(s.themOut || 0)}</b></span></div>`;
       // target nabung → progress dari saldo tabungan bersama
       if (goalEl && d.goal?.amount) {
@@ -786,7 +786,7 @@ function show(tab) {
         <button id="touchBtn" class="touchbtn">🤲 Tahan di sini — sentuh bareng</button>
         <div class="muted" id="touchState" style="margin-top:8px;min-height:18px"></div>
       </div>
-      <div class="msect"><b>Peduli dia</b>
+      <div class="msect"><b><em class="ic">💗</em> Peduli dia</b>
         <div class="caregrid">
           <button class="care" data-k="makan">🍚<span>Udah makan?</span></button>
           <button class="care" data-k="minum">💧<span>Minum air!</span></button>
@@ -794,26 +794,26 @@ function show(tab) {
           <button class="care" data-k="tidur">😴<span>Istirahat ya</span></button>
         </div>
       </div>
-      <div class="msect"><b>Main bareng</b>
+      <div class="msect"><b><em class="ic">🎮</em> Main bareng</b>
         <div class="playgrid">
-          <div class="playbox"><div class="pbt">✊ Suit</div>
+          <div class="playbox"><div class="pbt"><em class="ic">✊</em> Suit</div>
             <div class="suitrow"><button class="suit" data-h="✊">✊</button><button class="suit" data-h="✋">✋</button><button class="suit" data-h="✌️">✌️</button></div>
             <div class="muted" id="suitState" style="min-height:16px;font-size:11px"></div>
             <div class="muted" id="suitScore" style="font-size:10px"></div>
           </div>
-          <div class="playbox"><div class="pbt">🎲 Truth / Dare</div>
+          <div class="playbox"><div class="pbt"><em class="ic">🎲</em> Truth / Dare</div>
             <div class="todrow"><button class="tod" data-m="truth">😇</button><button class="tod" data-m="dare">😈</button></div>
             <div id="todState" class="todcard" style="display:none"></div>
           </div>
         </div>
         <div class="playbox" style="margin-top:8px">
-          <div class="pbt">⭕ XOXO</div>
+          <div class="pbt"><em class="ic">⭕</em> XOXO</div>
           <div id="tttState" class="hsub" style="min-height:16px;text-align:center"></div>
           <div id="tttBoard" class="tttboard" style="display:none"></div>
           <button id="tttBtn" class="mini ghost" style="width:100%">Ajak main</button>
         </div>
         <div class="playbox" style="margin-top:8px">
-          <div class="pbt">🧩 Tebak doodle</div>
+          <div class="pbt"><em class="ic">🧩</em> Tebak doodle</div>
           <div id="guessState" class="hsub" style="min-height:16px;text-align:center">gambar sesuatu — dia nebak!</div>
           <div id="guessWrap" style="display:none">
             <canvas id="guessCv" width="260" height="200"></canvas>
@@ -822,25 +822,25 @@ function show(tab) {
           </div>
           <button id="guessBtn" class="mini ghost" style="width:100%">✏️ Mulai menggambar</button>
         </div>
-        <button id="ultaBtn" class="sbtn" style="--c:#ff8fb1;width:100%;margin-top:8px">🐍<span>Ular Tangga — race ke 100 bareng!</span></button>
-        <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px">💘<span>Quiz "seberapa kenal"</span></button>
+        <button id="ultaBtn" class="sbtn" style="--c:#ff8fb1;width:100%;margin-top:8px"><em class="ic">🐍</em><span>Ular Tangga — race ke 100 bareng!</span></button>
+        <button id="quizBtn" class="sbtn" style="--c:#ffd166;width:100%;margin-top:8px"><em class="ic">💘</em><span>Quiz "seberapa kenal"</span></button>
         <div class="league" id="league"></div>
         <button id="focusBtn" class="sbtn" style="--c:#7ee8a2;width:100%;margin-top:8px">⏱️<span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
-      <div class="msect"><b>🎲 Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
+      <div class="msect"><b><em class="ic">🎲</em> Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
         <div class="randgrid">
-          <button class="randbtn" data-t="coin">🪙<span>Lempar koin</span></button>
-          <button class="randbtn" data-t="dice">🎲<span>Lempar dadu</span></button>
-          <button class="randbtn" data-t="pick">🎡<span>Siapa yang…?</span></button>
-          <button class="randbtn" data-t="custom">✏️<span>Acak pilihan</span></button>
+          <button class="randbtn" data-t="coin"><em class="ic">🪙</em><span>Lempar koin</span></button>
+          <button class="randbtn" data-t="dice"><em class="ic">🎲</em><span>Lempar dadu</span></button>
+          <button class="randbtn" data-t="pick"><em class="ic">🎡</em><span>Siapa yang…?</span></button>
+          <button class="randbtn" data-t="custom"><em class="ic">✏️</em><span>Acak pilihan</span></button>
         </div>
       </div>
-      <div class="msect"><b>Kirim sesuatu</b>
+      <div class="msect"><b><em class="ic">💌</em> Kirim sesuatu</b>
         <div class="sendgrid">
-          <button id="vrec" class="sbtn" style="--c:#ff8fb1">🎙️<span>Voice — tahan rekam</span></button>
-          <button id="doodBtn" class="sbtn" style="--c:#5cc8ff">🎨<span>Doodle</span></button>
-          <button id="lwrite" class="sbtn" style="--c:#ffd166">✍️<span>Surat</span></button>
-          <button id="capBtn2" class="sbtn" style="--c:#c58bff">🎁<span>Kado</span></button>
+          <button id="vrec" class="sbtn" style="--c:#ff8fb1"><em class="ic">🎙️</em><span>Voice — tahan rekam</span></button>
+          <button id="doodBtn" class="sbtn" style="--c:#5cc8ff"><em class="ic">🎨</em><span>Doodle</span></button>
+          <button id="lwrite" class="sbtn" style="--c:#ffd166"><em class="ic">✍️</em><span>Surat</span></button>
+          <button id="capBtn2" class="sbtn" style="--c:#c58bff"><em class="ic">🎁</em><span>Kado</span></button>
         </div>
         <div class="muted" id="vstate" style="margin-top:8px;min-height:16px"></div>
         <div id="doodWrap" style="display:none;margin-top:10px">
@@ -871,10 +871,14 @@ function show(tab) {
     $('#quizBtn').onclick = quizMenu;
     $('#ultaBtn').onclick = () => { socket.emit('ulta:start'); ultaOpen(); };
     $$('.randbtn').forEach(b => b.onclick = () => {
-      if (b.dataset.t === 'custom') {
+      if (b.dataset.t === 'pick') {
+        const task = prompt('Siapa yang apa? (misal: masak, bayar, jemput, milih film)');
+        if (task === null) return;
+        socket.emit('rand:go', { tool: 'pick', options: { task } });
+      } else if (b.dataset.t === 'custom') {
         const opts = prompt('Pilihan apa aja? pisahin pakai koma (misal: mie, nasi padang, sushi)');
         if (!opts?.trim()) return;
-        socket.emit('rand:go', { tool: 'pick', options: opts.split(',').map(s => s.trim()).filter(Boolean) });
+        socket.emit('rand:go', { tool: 'pick', options: { list: opts.split(',').map(s => s.trim()).filter(Boolean) } });
       } else socket.emit('rand:go', { tool: b.dataset.t });
       toast('Mengacak… 🎲');
     });
@@ -905,7 +909,7 @@ function show(tab) {
     v.innerHTML = `<div class="list">
       <div class="segtoggle"><button id="segList" class="on">📋 List</button><button id="segCal">📅 Kalender</button></div>
       <div class="hcard" style="gap:9px">
-        <div class="hlabel">➕ Jadwal baru</div>
+        <div class="hlabel"><em class="ic">➕</em> Jadwal baru</div>
         <input id="st" placeholder="Judul (misal: ☕ Call yuk)" maxlength="80">
         <div class="hqin"><input id="stime" type="datetime-local"><select id="srep"><option value="">sekali</option><option value="daily">🔁 harian</option><option value="weekly">🔁 mingguan</option></select></div>
         <button id="sadd">Tambah</button>
@@ -982,7 +986,7 @@ function show(tab) {
 // ---------- TAB KITA — hubungan & utilitas ----------
 function renderKita(v) {
   v.innerHTML = `<div class="list">
-    <div class="msect"><b>💕 Kalian</b>
+    <div class="msect"><b><em class="ic">💕</em> Kalian</b>
       <div class="srow"><span>💕 Bareng</span><b>hari ke-${daysTogether()}</b></div>
       <div class="srow"><span>📅 Sejak</span><b>${new Date(sinceTs()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>
       <div class="srow"><span>🎂 Monthsary</span><b>${nextMonthsary().months} bulan · ${nextMonthsary().days} hari lagi</b></div>
@@ -993,15 +997,15 @@ function renderKita(v) {
       <div class="hsub" style="margin-top:2px">lagu kalian:</div>
       <div class="hqin"><input id="songIn" placeholder="🎵 Lagu kita" maxlength="60" value="${esc(me.pair.song || '')}"><button id="songBtn" class="mini">🎵</button></div>
     </div>
-    <div class="msect"><b>📡 Monitoring dia <span class="hsub">— status &amp; aktivitas terbaru</span></b>
+    <div class="msect"><b><em class="ic">📡</em> Monitoring dia <span class="hsub">— status &amp; aktivitas terbaru</span></b>
       <div class="monit" id="monit"><div class="hsub">…</div></div>
       <div id="monitFeed"><div class="hsub">…</div></div>
     </div>
-    <div class="msect"><b>📊 Statistik kalian</b>
+    <div class="msect"><b><em class="ic">📊</em> Statistik kalian</b>
       <div class="statgrid" id="statGrid"><div class="hsub">memuat…</div></div>
     </div>
-    <div class="msect"><b>🎨 Tampilan</b>
-      <div class="themrow">${[['', '🌊', 'Langit'], ['dark', '🌙', 'Gelap'], ['light', '☀️', 'Terang'], ['sakura', '🌸', 'Sakura'], ['lavender', '💜', 'Lavender'], ['forest', '🌿', 'Hutan']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
+    <div class="msect"><b><em class="ic">🎨</em> Tampilan</b>
+      <div class="themrow">${[['', '💜', 'Lilac'], ['sakura', '🌸', 'Sakura'], ['mint', '🍃', 'Mint'], ['peach', '🍑', 'Peach'], ['night', '🌙', 'Malam']].map(([t, e, n]) => `<button class="tswatch ${(document.documentElement.dataset.theme || '') === t ? 'on' : ''}" data-t="${t}"><span>${e}</span><i>${n}</i></button>`).join('')}</div>
     </div>
     <details class="msect mfold"><summary>📦 Arsip &amp; Lainnya</summary>
       <button id="bakBtn" class="ghost">🔑 Kode cadangan akun</button>
@@ -1196,7 +1200,12 @@ async function renderHome(v) {
     : myB === 0 ? `<div class="hcard mday">🎂 <b>Selamat ulang tahun, ${esc(me.user.name)}!</b><span>Hari spesialmu 🎉</span></div>` : '';
   const bdayChip = theirB != null && theirB > 0 && theirB <= 14 ? `<div class="hchip">🎂 ultahnya ${theirB} hari lagi</div>`
     : myB != null && myB > 0 && myB <= 14 ? `<div class="hchip">🎂 ultahmu ${myB} hari lagi</div>` : '';
+  // maskot lynx — ekspresi sesuai waktu & kondisi
+  const hr = new Date().getHours(), darkT = document.documentElement.dataset.theme === 'night';
+  const mMood = (hr >= 23 || hr < 6 || darkT) ? 'sleep' : (!answered ? 'letter' : (p.mood ? 'happy' : 'idle'));
+  const greet = { sleep: 'udah larut — istirahat dulu ya 💤', letter: 'ada pertanyaan baru — jawab bareng yuk ✉️', happy: `dia lagi ${p.mood} — semoga harimu lembut 💜`, idle: 'siap nemenin hari kalian 🐾' };
   v.innerHTML = `<div class="home">
+    <div class="mascot">${lynxSVG(mMood)}<div class="mtxt"><span class="mascot-hi">Hai ${esc(me.user.name)}!</span>${greet[mMood]}</div></div>
     ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
     ${bdayBanner}
     <div class="hcard pcard">
@@ -1209,6 +1218,10 @@ async function renderHome(v) {
       </div>
       <div class="hdays">💕<b>${daysTogether()}</b><span>hari</span></div>
     </div>
+    <div class="hcard"><div class="garden"><div class="gstage" id="gStage">🌱</div>
+      <div class="ginfo"><div class="gstage-t" id="gName">Taman kalian</div>
+      <div class="hsub" id="gSub">tumbuh bareng tiap interaksi 💜</div>
+      <div class="gbar"><i id="gBar" style="width:0%"></i></div></div></div></div>
     <div class="hmood"><span class="hsub">mood kamu</span><div class="moodrow">${['😊','🥰','😴','🥺','😤','🤒','🔥','🎉'].map(e => `<button class="mood ${me.user.mood === e ? 'on' : ''}" data-m="${e}">${e}</button>`).join('')}</div></div>
     <div class="hchips">
       <div class="hchip">🔥 ${d.streak || 0} hari</div>
@@ -1221,28 +1234,28 @@ async function renderHome(v) {
       <div class="hchip" id="hWx">🌦️…</div>
     </div>
     <div class="hcard" id="moodCard" style="display:none">
-      <div class="hlabel">😊 Mood minggu ini</div>
+      <div class="hlabel"><em class="ic">😊</em> Mood minggu ini</div>
       <div id="moodWeek"></div>
     </div>
     <div class="hcard">
-      <div class="hlabel">❓ Pertanyaan hari ini</div>
+      <div class="hlabel"><em class="ic">❓</em> Pertanyaan hari ini</div>
       <div class="hq">${esc(d.q || '')}</div>
       ${!answered ? `<div class="hqin"><input id="hans" placeholder="Jawabanmu…" maxlength="200"><button id="hansBtn" class="mini">Kirim</button></div><div class="hsub">jawaban dia kebuka setelah kamu jawab</div>`
         : both ? `<div class="hans"><b>${esc(me.user.name)}:</b> ${esc(d.myAnswer)}</div><div class="hans theirs"><b>${esc(pname())}:</b> ${esc(d.theirAnswer)}</div>` + reactRow('answer', d.answerReacts, todayKey())
         : `<div class="hans"><b>Kamu:</b> ${esc(d.myAnswer)}</div><div class="hsub">menunggu ${esc(pname())} jawab… 🤫</div>`}
     </div>
     <div class="hcard">
-      <div class="hlabel">📝 Catatan buat dia <span class="hsub">(tampil di home-nya)</span></div>
+      <div class="hlabel"><em class="ic">📝</em> Catatan buat dia <span class="hsub">(tampil di home-nya)</span></div>
       ${d.theirNote ? `<div class="hnote">${esc(d.theirNote)}<span class="hfrom">— ${esc(pname())}</span></div>` : ''}
       <div class="hqin"><input id="hnote" placeholder="Tulis catatan kecil…" maxlength="200" value="${esc(d.myNote || '')}"><button id="hnoteBtn" class="mini">💌</button></div>
     </div>
     <div class="hcard">
-      <div class="hlabel">💬 Chat kalian</div>
+      <div class="hlabel"><em class="ic">💬</em> Chat kalian</div>
       <div class="chatprev" id="chatPrev"><div class="hsub">belum ada chat — mulai ngobrol 💬</div></div>
       <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatImg" class="mini ghost" title="Kirim foto">📷</button><input type="file" id="chatFile" accept="image/*" capture="environment" hidden><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
     </div>
     <div class="hcard">
-      <div class="hlabel">📸 Foto hari ini</div>
+      <div class="hlabel"><em class="ic">📸</em> Foto hari ini</div>
       <div class="hphotos" id="hphotos">` +
         (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(pname())}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
       `</div>
@@ -1252,7 +1265,7 @@ async function renderHome(v) {
       </div>
     </div>
     <div class="hcard">
-      <div class="hlabel">🖼️ Kenangan <span class="hsub">(album kalian)</span></div>
+      <div class="hlabel"><em class="ic">🖼️</em> Kenangan <span class="hsub">(album kalian)</span></div>
       <div class="hphotos" id="hmems"></div>
       <div class="hqin" style="gap:8px">
         <label class="hphotobtn" style="flex:1;margin:0">📷 Kamera<input type="file" id="mfile" accept="image/*" capture="environment" hidden></label>
@@ -1339,6 +1352,15 @@ async function renderHome(v) {
   $('#chatImg').onclick = () => $('#chatFile').click();
   $('#chatFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
   if (partnerLoc?.lat != null) placeName(partnerLoc.lat, partnerLoc.lng).then(n => { const e = $('#hplace'); if (e && n) e.textContent = '📍 ' + n; });
+  api('/garden').then(g => {
+    if (!g || !$('#gStage')) return;
+    const STAGES = [['🌱', 'Bibit cinta'], ['🌿', 'Kecambah'], ['🪴', 'Tanaman muda'], ['🌷', 'Kuncup'], ['🌸', 'Bunga mekar'], ['🌳', 'Pohon rindu']];
+    const [e, nm] = STAGES[g.stage] || STAGES[0];
+    $('#gStage').textContent = e;
+    $('#gName').textContent = `${nm} — Lv ${g.level}`;
+    $('#gSub').textContent = g.level >= 10 ? 'taman kalian subur banget! 💜' : `${g.xp} momen · terus berinteraksi biar tumbuh`;
+    $('#gBar').style.width = g.pct + '%';
+  }).catch(() => {});
 
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
@@ -1461,17 +1483,38 @@ function ultaOpen() {
     const r = 9 - i;
     for (let c = 0; c < 10; c++) {
       const n = r * 10 + (r % 2 === 0 ? c + 1 : 10 - c);
-      const cls = n === 100 ? 'fin' : ULTA_LAD[n] ? 'lad' : ULTA_SNK[n] ? 'snk' : '';
+      const cls = (n === 100 ? 'fin ' : '') + (ULTA_LAD[n] ? 'lad ' : '') + (ULTA_SNK[n] ? 'snk ' : '') + ((i + c) % 2 ? 'alt' : '');
       const tokA = s.pos?.[a] === n, tokB = s.pos?.[b] === n;
       const two = tokA && tokB;
       cells += `<div class="ultacell ${cls}"><i>${n === 1 ? '🚩' : n === 100 ? '🏁' : n}</i>${tokA ? `<span class="ultatok a ${two ? 'two' : ''}">${avTok(a)}</span>` : ''}${tokB ? `<span class="ultatok b ${two ? 'two' : ''}">${avTok(b)}</span>` : ''}</div>`;
     }
   }
-  bd.innerHTML = cells;
+  // gambar koneksi — tangga = rel + anak tangga, ular = liuk + kepala
+  const ctr = (n) => { const r = Math.floor((n - 1) / 10), c = r % 2 === 0 ? (n - 1) % 10 : 9 - ((n - 1) % 10); return [c + .5, 9 - r + .5]; };
+  let svg = '<svg class="ultasvg" viewBox="0 0 10 10" preserveAspectRatio="none">';
+  for (const [bot, top] of Object.entries(ULTA_LAD)) {
+    const [x1, y1] = ctr(+bot), [x2, y2] = ctr(top);
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), px = -dy / L * .14, py = dx / L * .14;
+    svg += `<line x1="${x1 + px}" y1="${y1 + py}" x2="${x2 + px}" y2="${y2 + py}" class="ulad"/>`;
+    svg += `<line x1="${x1 - px}" y1="${y1 - py}" x2="${x2 - px}" y2="${y2 - py}" class="ulad"/>`;
+    const steps = Math.max(3, Math.round(L * 2));
+    for (let i = 1; i < steps; i++) {
+      const f = i / steps, ax = x1 + dx * f, ay = y1 + dy * f;
+      svg += `<line x1="${ax + px}" y1="${ay + py}" x2="${ax - px}" y2="${ay - py}" class="uladr"/>`;
+    }
+  }
+  for (const [head, tail] of Object.entries(ULTA_SNK)) {
+    const [x1, y1] = ctr(+head), [x2, y2] = ctr(tail);
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), px = -dy / L * .5, py = dx / L * .5;
+    const ax = x1 + dx * .33, ay = y1 + dy * .33, bx = x1 + dx * .66, by = y1 + dy * .66;
+    svg += `<path d="M${x1} ${y1} C ${ax + px} ${ay + py}, ${bx - px} ${by - py}, ${x2} ${y2}" class="usnk"/>`;
+    svg += `<circle cx="${x1}" cy="${y1}" r=".12" class="usnkh"/>`;
+  }
+  bd.innerHTML = cells + svg + '</svg>';
   const my = s.turn === me.user.id;
   el.querySelector('#ulRoll').disabled = !my || !!s.win;
   el.querySelector('#ulRoll').textContent = s.win ? '🏁 selesai' : my ? '🎲 Kocok! (giliran kamu)' : `⏳ giliran ${nm(s.turn)}…`;
-  el.querySelector('#ulDice').textContent = s.last ? ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][s.last.dice] : '🎲';
+  el.querySelector('#ulDice').innerHTML = s.last ? `<span class="uldie">${s.last.dice}</span>` : '🎲';
   el.querySelector('#ulMsg').innerHTML = s.win
     ? `🎉 <b>${nm(s.win)}</b> nyampe 100 — menang!${s.win === me.user.id ? ' 😼' : ''}`
     : s.last ? `${esc(s.last.name)} kocok <b>${s.last.dice}</b>${s.last.msg ? ' · ' + esc(s.last.msg) : ''}` : 'yang mulai game kocok duluan 🎲';
@@ -1479,6 +1522,28 @@ function ultaOpen() {
 const avTok = (uid) => {
   const u = uid === me.user.id ? me.user : me.partner;
   return u?.avatar?.startsWith('data:') ? `<img src="${u.avatar}">` : esc(u?.avatar || (u?.name || '?')[0].toUpperCase());
+};
+// maskot lynx — wajah kecil ekspresif (idle/happy/sleep/letter)
+const lynxSVG = (mood = 'idle') => {
+  const eyes = {
+    idle: '<circle cx="22" cy="34" r="3.4"/><circle cx="42" cy="34" r="3.4"/>',
+    letter: '<circle cx="22" cy="34" r="3.4"/><circle cx="42" cy="34" r="3.4"/>',
+    happy: '<path d="M18 34 q4 -5 8 0" fill="none"/><path d="M38 34 q4 -5 8 0" fill="none"/>',
+    sleep: '<path d="M18 35 h8"/><path d="M38 35 h8"/>',
+  }[mood] || '';
+  return `<svg class="msvg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="mg_${mood}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9a3f7"/><stop offset="1" stop-color="#8b6fd8"/></linearGradient></defs>
+    <path d="M15 24 L11 5 L26 15 Z" fill="url(#mg_${mood})"/><path d="M49 24 L53 5 L38 15 Z" fill="url(#mg_${mood})"/>
+    <circle cx="13" cy="6" r="2.8" fill="#6d54b8"/><circle cx="51" cy="6" r="2.8" fill="#6d54b8"/>
+    <rect x="9" y="15" width="46" height="45" rx="21" fill="url(#mg_${mood})"/>
+    <g fill="#3d2f6b" stroke="#3d2f6b" stroke-width="2.8" stroke-linecap="round">${eyes}</g>
+    ${mood === 'happy' ? '<circle cx="16" cy="41" r="3.2" fill="#f5a3c8" opacity=".85"/><circle cx="48" cy="41" r="3.2" fill="#f5a3c8" opacity=".85"/>' : ''}
+    <path d="M29 45 h6 l-3 4 Z" fill="#3d2f6b"/>
+    <path d="M32 49 q0 4 -5 4.5 M32 49 q0 4 5 4.5" stroke="#3d2f6b" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <g stroke="#3d2f6b" stroke-width="1.7" stroke-linecap="round" opacity=".5"><path d="M14 44 l-8 -1"/><path d="M14 50 l-8 2"/><path d="M50 44 l8 -1"/><path d="M50 50 l8 2"/></g>
+    ${mood === 'sleep' ? '<text x="44" y="14" font-size="10">💤</text>' : ''}
+    ${mood === 'letter' ? '<text x="43" y="52" font-size="12">💌</text>' : ''}
+  </svg>`;
 };
 
 function photoViewer(src) {
@@ -2335,7 +2400,11 @@ async function loadCapsules() {
 }
 
 // ---------- INIT ----------
-if (localStorage.cw_theme) document.documentElement.dataset.theme = localStorage.cw_theme;
+// migrasi tema lama → pastel (light/dark/lavender/forest → palet baru)
+const _tmap = { dark: 'night', light: '', lavender: '', forest: 'mint', '': '' };
+if (localStorage.cw_theme != null && !(localStorage.cw_theme in _tmap) && !['sakura', 'mint', 'peach', 'night'].includes(localStorage.cw_theme)) localStorage.cw_theme = '';
+if (localStorage.cw_theme in _tmap) localStorage.cw_theme = _tmap[localStorage.cw_theme];
+document.documentElement.dataset.theme = localStorage.cw_theme || '';
 if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 // viewport dinamis — keyboard iOS menyusutkan layar, input chat tetap kelihatan

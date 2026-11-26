@@ -386,6 +386,16 @@ export const store = {
     q('SELECT ts FROM bucket WHERE pair_id=? AND ts>?');
     return days;
   },
+  // taman kalian — xp total dari semua interaksi (lifetime)
+  gardenXp: (pairId) => {
+    const c = (t, w = '') => db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE pair_id=? ${w}`).get(pairId).c;
+    return {
+      miss: c('miss_events'), msgs: c('couple_msgs'), photos: c('photos'), mems: c('memories'),
+      pins: c('pins'), letters: c('letters'), saves: c('expenses'), games: c('suit_results'),
+      habits: db.prepare('SELECT COUNT(*) c FROM habit_checks hc JOIN habits h ON h.id=hc.habit_id WHERE h.pair_id=?').get(pairId).c,
+      answers: db.prepare('SELECT COUNT(DISTINCT day) c FROM answers WHERE pair_id=?').get(pairId).c,
+    };
+  },
   monthStats: (pairId, since) => ({
     miss: db.prepare('SELECT COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=?').get(pairId, since).c,
     miss_by: db.prepare('SELECT from_user, COUNT(*) c FROM miss_events WHERE pair_id=? AND ts>=? GROUP BY from_user').all(pairId, since),

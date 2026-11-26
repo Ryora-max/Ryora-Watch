@@ -372,6 +372,14 @@ app.get('/api/expenses', auth, (req, res) => {
   try { goal = JSON.parse(store.kvGet('goal:' + req.user.pair_id) || 'null'); } catch {}
   res.json({ list: list.filter(e => (e.pot || 'daily') === 'daily').slice(0, 60), slist: slist.slice(0, 60), daily, saving, goal });
 });
+// taman kalian — tumbuh dari semua interaksi berdua
+app.get('/api/garden', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ xp: 0, level: 1, pct: 0, stage: 0 });
+  const s = store.gardenXp(req.user.pair_id);
+  const xp = s.miss + s.msgs * 2 + s.photos * 6 + s.mems * 8 + s.pins * 5 + s.habits * 4 + s.letters * 10 + s.saves * 2 + s.games * 3 + s.answers * 4;
+  const per = 80, level = Math.min(10, Math.floor(xp / per) + 1);
+  res.json({ xp, level, pct: level >= 10 ? 100 : Math.round(xp % per / per * 100), stage: Math.min(5, Math.floor((level - 1) / 2)) });
+});
 // target nabung bareng
 app.post('/api/goal', auth, (req, res) => {
   const amount = Math.round(Math.abs(+req.body?.amount || 0));
@@ -1006,9 +1014,12 @@ io.on('connection', (socket) => {
     if (tool === 'coin') { const angka = Math.random() < .5; result = angka ? '🔢 ANGKA' : '🦅 GAMBAR'; label = 'lempar koin'; }
     else if (tool === 'dice') { const n = 1 + Math.floor(Math.random() * 6); result = '🎲 ' + n; label = 'lempar dadu'; }
     else if (tool === 'pick') {
-      const opts = (Array.isArray(options) && options.length ? options : [u.name, partner?.name].filter(Boolean)).map(o => String(o).slice(0, 40));
+      const oIn = Array.isArray(options) ? { list: options } : (options || {});
+      const task = String(oIn.task || '').trim().slice(0, 40);
+      const opts = (Array.isArray(oIn.list) && oIn.list.length ? oIn.list : [u.name, partner?.name].filter(Boolean)).map(o => String(o).slice(0, 40));
       if (!opts.length) return;
-      result = '🎯 ' + opts[Math.floor(Math.random() * opts.length)]; label = 'acak pilihan';
+      result = '🎯 ' + opts[Math.floor(Math.random() * opts.length)];
+      label = task ? `acak "siapa yang ${task}"` : 'acak pilihan';
     } else return;
     io.to(u.pair_id).emit('rand:result', { tool, result, from: u.name, label });
     pushPartner(u, { title: '🎲 LYNX LIFE', body: `${u.name} ${label} → ${result}`, tag: 'rand' });
