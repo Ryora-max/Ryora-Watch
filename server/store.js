@@ -103,6 +103,15 @@ CREATE TABLE IF NOT EXISTS quiz (
 CREATE TABLE IF NOT EXISTS quiz_guesses (
   quiz_id TEXT, user_id TEXT, guesses TEXT, ts INTEGER, PRIMARY KEY(quiz_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS couple_msgs (
+  id TEXT PRIMARY KEY, pair_id TEXT, user_id TEXT, text TEXT, ts INTEGER
+);
+CREATE TABLE IF NOT EXISTS habits (
+  id TEXT PRIMARY KEY, pair_id TEXT, name TEXT, by TEXT, ts INTEGER
+);
+CREATE TABLE IF NOT EXISTS habit_checks (
+  habit_id TEXT, user_id TEXT, day TEXT, ts INTEGER, PRIMARY KEY(habit_id, user_id, day)
+);
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN ai_enabled INTEGER DEFAULT 1'); } catch {}
@@ -121,6 +130,7 @@ try { db.exec('ALTER TABLE users ADD COLUMN dnd_from INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN dnd_to INTEGER'); } catch {}
 try { db.exec('ALTER TABLE suit_results ADD COLUMN game TEXT DEFAULT "suit"'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN repeat TEXT'); } catch {}
+try { db.exec('ALTER TABLE pins ADD COLUMN img TEXT'); } catch {}
 db.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)');
 
 // Migrasi sekali: impor semua tabel dari couple.db lama (node:sqlite) ke replica Turso.
@@ -318,6 +328,23 @@ export const store = {
   addPin: (pairId, uid, name, lat, lng) => { db.prepare('INSERT INTO pins (id,pair_id,user_id,name,lat,lng,ts) VALUES (?,?,?,?,?,?,?)').run(id(), pairId, uid, name, lat, lng, Date.now()); },
   pins: (pairId) => db.prepare('SELECT p.*, u.name by_name FROM pins p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? ORDER BY p.ts DESC').all(pairId),
   delPin: (pairId, pinId, uid) => db.prepare('DELETE FROM pins WHERE pair_id=? AND id=? AND user_id=?').run(pairId, pinId, uid),
+  pinPhoto: (pairId, pinId, img) => db.prepare('UPDATE pins SET img=? WHERE pair_id=? AND id=?').run(img, pairId, pinId),
+
+  // --- mini-chat pasangan ---
+  addCMsg: (pairId, uid, text) => {
+    db.prepare('INSERT INTO couple_msgs (id,pair_id,user_id,text,ts) VALUES (?,?,?,?,?)').run(id(), pairId, uid, text, Date.now());
+    db.prepare('DELETE FROM couple_msgs WHERE pair_id=? AND id NOT IN (SELECT id FROM couple_msgs WHERE pair_id=? ORDER BY ts DESC LIMIT 400)').run(pairId, pairId);
+  },
+  cmsgs: (pairId, n = 80) => db.prepare('SELECT m.*, u.name from_name FROM couple_msgs m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, n).reverse(),
+  delCMsg: (pairId, msgId, uid) => db.prepare('DELETE FROM couple_msgs WHERE pair_id=? AND id=? AND user_id=?').run(pairId, msgId, uid),
+
+  // --- habit bareng ---
+  addHabit: (pairId, uid, name) => { db.prepare('INSERT INTO habits (id,pair_id,name,by,ts) VALUES (?,?,?,?,?)').run(id(), pairId, name, uid, Date.now()); },
+  habits: (pairId) => db.prepare('SELECT h.*, u.name by_name FROM habits h JOIN users u ON u.id=h.by WHERE h.pair_id=? ORDER BY h.ts').all(pairId),
+  delHabit: (pairId, hid) => { db.prepare('DELETE FROM habits WHERE pair_id=? AND id=?').run(pairId, hid); db.prepare('DELETE FROM habit_checks WHERE habit_id=?').run(hid); },
+  habitCheck: (hid, uid, day) => db.prepare('INSERT OR IGNORE INTO habit_checks (habit_id,user_id,day,ts) VALUES (?,?,?,?)').run(hid, uid, day, Date.now()),
+  habitUncheck: (hid, uid, day) => db.prepare('DELETE FROM habit_checks WHERE habit_id=? AND user_id=? AND day=?').run(hid, uid, day),
+  habitChecks: (hid, days) => db.prepare('SELECT user_id, day FROM habit_checks WHERE habit_id=? AND day>=?').all(hid, days),
 
   // --- quiz kenal ---
   quizGet: (pairId, day, uid) => db.prepare('SELECT q.*, u.name by_name FROM quiz q JOIN users u ON u.id=q.user_id WHERE q.pair_id=? AND q.day=? AND q.user_id=?').get(pairId, day, uid),

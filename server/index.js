@@ -184,7 +184,7 @@ const QUESTIONS = [
   'Satu hal yang kamu janjiin untuk kita?',
   'Warna yang paling ngingetin kamu ke aku? Kenapa?',
 ];
-const dayKey = () => new Date().toISOString().slice(0, 10);
+const dayKey = (d = new Date()) => d.toISOString().slice(0, 10);
 const todayQ = () => QUESTIONS[Math.floor(Date.now() / 86400000) % QUESTIONS.length];
 
 app.get('/api/home', auth, (req, res) => {
@@ -270,6 +270,77 @@ app.delete('/api/pin/:id', auth, (req, res) => {
   if (!req.user.pair_id) return res.json({ ok: true });
   store.delPin(req.user.pair_id, req.params.id, req.user.id);
   io.to(req.user.pair_id).emit('pins:changed');
+  res.json({ ok: true });
+});
+// tempel foto kenangan ke pin — siapa pun dari kalian boleh
+app.put('/api/pin/:id/photo', auth, (req, res) => {
+  const img = String(req.body?.img || '');
+  if (!req.user.pair_id || !img.startsWith('data:image/') || img.length > 1400000) return res.status(400).json({ error: 'invalid' });
+  store.pinPhoto(req.user.pair_id, req.params.id, img);
+  io.to(req.user.pair_id).emit('pins:changed');
+  res.json({ ok: true });
+});
+
+// --- mini-chat pasangan ---
+app.get('/api/msgs', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  res.json(store.cmsgs(req.user.pair_id).map(m => ({ ...m, mine: m.user_id === req.user.id })));
+});
+app.post('/api/msg', auth, (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 500);
+  if (!req.user.pair_id || !text) return res.status(400).json({ error: 'invalid' });
+  const now = Date.now();
+  if (now - (lastMiss.get('m' + req.user.id) || 0) < 800) return res.json({ ok: true });
+  lastMiss.set('m' + req.user.id, now);
+  store.addCMsg(req.user.pair_id, req.user.id, text);
+  io.to(req.user.pair_id).emit('msg:new', { from: req.user.name, text, uid: req.user.id, ts: now });
+  pushPartner(req.user, { title: '💬 ' + req.user.name, body: text.slice(0, 120), tag: 'chat' });
+  res.json({ ok: true });
+});
+
+// --- habit bareng — streak kalau dua-duanya check ---
+app.get('/api/habits', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json([]);
+  const partner = store.partnerOf(req.user);
+  const cutoff = dayKey(new Date(Date.now() - 90 * 86400000));
+  res.json(store.habits(req.user.pair_id).map(h => {
+    const checks = store.habitChecks(h.id, cutoff);
+    const days = new Set(checks.filter(c => partner && checks.some(x => x.habit_id === h.id && x.day === c.day && x.user_id === partner.id)).map(c => c.day));
+    // streak: hari berurutan dihitung mundur — hari "lolos" kalau dua-duanya check;
+    // hari ini belum check nggak langsung mutus streak
+    let streak = 0;
+    for (let i = 0; i < 90; i++) {
+      const dk = dayKey(new Date(Date.now() - i * 86400000));
+      if (days.has(dk)) streak++;
+      else if (i > 0) break;
+    }
+    const today = dayKey();
+    return { ...h, mine: checks.some(c => c.user_id === req.user.id && c.day === today), theirs: partner ? checks.some(c => c.user_id === partner.id && c.day === today) : false, streak };
+  }));
+});
+app.post('/api/habit', auth, (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 60);
+  if (!req.user.pair_id || !name) return res.status(400).json({ error: 'invalid' });
+  if (store.habits(req.user.pair_id).length >= 8) return res.status(400).json({ error: 'max 8 habit' });
+  store.addHabit(req.user.pair_id, req.user.id, name);
+  io.to(req.user.pair_id).emit('home:changed');
+  res.json({ ok: true });
+});
+app.post('/api/habit/:id/check', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ ok: true });
+  const h = store.habits(req.user.pair_id).find(x => x.id === req.params.id);
+  if (!h) return res.status(404).json({ error: 'not found' });
+  const today = dayKey();
+  const has = store.habitChecks(h.id, today).some(c => c.user_id === req.user.id && c.day === today);
+  if (has) store.habitUncheck(h.id, req.user.id, today); else store.habitCheck(h.id, req.user.id, today);
+  io.to(req.user.pair_id).emit('home:changed');
+  if (!has) pushPartner(req.user, { title: '🎯 Ryora Watch', body: `${req.user.name} udah ✓ "${h.name}" — giliran kamu!`, tag: 'habit' });
+  res.json({ ok: true, checked: !has });
+});
+app.delete('/api/habit/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.json({ ok: true });
+  store.delHabit(req.user.pair_id, req.params.id);
+  io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
 });
 
@@ -752,7 +823,7 @@ io.on('connection', (socket) => {
     console.log(`[miss] ${u.name} → room ${u.pair_id} (${roomSize} sockets)`);
     socket.to(u.pair_id).emit('miss:receive', { from: u.name, pattern, ts: now });
     socket.emit('miss:sent');
-    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name} kangen kamu${pattern > 1 ? ` ×${pattern}` : ''}`, tag: 'miss' });
+    pushPartner(u, { title: '💓 Ryora Watch', body: `${u.name} kangen kamu${pattern > 1 ? ` ×${pattern}` : ''}`, tag: 'miss', act: 'missback' });
   });
 
   socket.on('care:send', ({ kind }) => {

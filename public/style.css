@@ -333,6 +333,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hans b { color:var(--accent2); }
 .hnote { background:#fff8dc18; border:1px solid #f5d76e44; border-radius:12px; padding:11px 13px;
   font-size:14px; font-style:italic; }
+/* mini-chat */
+.chatprev { display:flex; flex-direction:column; gap:6px; }
+.cpmsg { background:#ffffff10; border-radius:10px; padding:8px 11px; font-size:13px; }
+.cpmsg b { color:var(--accent2); margin-right:6px; font-size:11px; }
+.cpmsg.me b { color:#7ef0c9; }
+.cmlist { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:180px; }
+.cmsg { display:flex; }
+.cmsg .cbub { max-width:78%; background:#ffffff14; border:1px solid var(--line); border-radius:14px 14px 14px 4px;
+  padding:9px 13px; font-size:14px; line-height:1.4; }
+.cmsg.me { justify-content:flex-end; }
+.cmsg.me .cbub { background:linear-gradient(135deg,#5cc8ff33,#4fd8c033); border-color:#5cc8ff44; border-radius:14px 14px 4px 14px; }
+.cbub i { display:block; font-size:9px; color:var(--dim); font-style:normal; margin-top:3px; }
+/* habit bareng */
+.habrow { display:flex; align-items:center; gap:10px; background:#ffffff10; border-radius:12px; padding:9px 12px; }
+.habcheck { width:auto; min-width:40px; padding:6px 10px; font-size:15px; border-radius:10px; background:transparent; border:1px solid var(--line); box-shadow:none; }
+.habcheck.on { border-color:#4fd8c0; background:#4fd8c022; }
+.habinfo { flex:1; display:flex; flex-direction:column; }
+.habinfo b { font-size:14px; }
+.habinfo span { font-size:11px; color:var(--dim); }
+.hdel { color:var(--accent); cursor:pointer; font-size:15px; padding:4px; }
 .hfrom { display:block; font-size:11px; color:var(--dim); margin-top:4px; font-style:normal; }
 .hphotos { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .hphoto { border-radius:12px; overflow:hidden; position:relative; aspect-ratio:1; }

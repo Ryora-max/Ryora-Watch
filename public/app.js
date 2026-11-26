@@ -17,6 +17,8 @@ let partnerOnline = false, partnerSeen = null, deferredInstall = null;
 // offset jam server — biar countdown bareng serentak walau jam HP beda
 let clkOff = 0;
 const srvNow = () => Date.now() + clkOff;
+// "kangen balik" dari tombol di notifikasi push
+let pendingMissBack = new URLSearchParams(location.search).get('missback') === '1';
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 
 function toast(t, ms = 2600) {
@@ -280,6 +282,7 @@ function connectSocket() {
     conn('ok');
     const t0 = Date.now();
     socket.emit('time:ping', t0, (srv) => { clkOff = srv - Math.round((t0 + Date.now()) / 2); });
+    if (pendingMissBack) { pendingMissBack = false; socket.emit('miss:send', { pattern: 1 }); toast('💓 kangen dibales!'); history.replaceState({}, '', '/'); }
   });
   socket.on('disconnect', () => conn('off'));
   socket.on('connect_error', () => conn('off'));
@@ -403,6 +406,17 @@ function connectSocket() {
     toast(msg, 4000);
     suitMyPick = null;
     $$('.suit').forEach(x => x.classList.remove('on'));
+  });
+  socket.on('msg:new', (m) => {
+    chatCache.push(m);
+    renderChatPrev();
+    const list = $('#cmlist');
+    if (list) {
+      const empty = list.querySelector('.hsub'); if (empty) empty.remove();
+      list.insertAdjacentHTML('beforeend', cmsgRow(m));
+      list.scrollTop = list.scrollHeight;
+    }
+    if (m.uid !== me.user.id) { ding(); navigator.vibrate?.(120); if (!list) toast(`💬 ${m.from}: ${m.text.slice(0, 60)}`, 3500); }
   });
   socket.on('letter:new', ({ from }) => {
     ding(); navigator.vibrate?.([250, 100, 250]);
@@ -1070,6 +1084,16 @@ async function renderHome(v) {
       <div class="hqin"><input id="hnote" placeholder="Tulis catatan kecil…" maxlength="200" value="${esc(d.myNote || '')}"><button id="hnoteBtn" class="mini">💌</button></div>
     </div>
     <div class="hcard">
+      <div class="hlabel">💬 Chat kalian</div>
+      <div class="chatprev" id="chatPrev"><div class="hsub">belum ada chat — mulai ngobrol 💬</div></div>
+      <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
+    </div>
+    <div class="hcard">
+      <div class="hlabel">🎯 Habit bareng <span class="hsub">streak 🔥 kalau dua-duanya ✓</span></div>
+      <div id="habitList"><div class="hsub">…</div></div>
+      <div class="hqin"><input id="habIn" placeholder="Habit baru (misal: minum air 💧)" maxlength="60"><button id="habAdd" class="mini">＋</button></div>
+    </div>
+    <div class="hcard">
       <div class="hlabel">📸 Foto hari ini</div>
       <div class="hphotos" id="hphotos">` +
         (d.photos?.length ? d.photos.map(ph => `<div class="hphoto ${ph.mine ? '' : 'theirs'}"><img src="${ph.img}"><span>${ph.mine ? 'Kamu' : esc(pname())}${ph.caption ? ' · ' + esc(ph.caption) : ''}</span>${ph.mine ? '' : reactRow('photo', ph.reacts, todayKey() + ':' + p.id)}</div>`).join('') : '<div class="hsub">belum ada foto — kirim momen harimu 📷</div>') +
@@ -1156,6 +1180,35 @@ async function renderHome(v) {
     await api('/note', { method: 'POST', body: { text: $('#hnote').value.trim() } });
     toast('Catatan tersimpan 💌');
   };
+  // 💬 mini-chat
+  api('/msgs').then(m => { if (Array.isArray(m)) { chatCache = m; renderChatPrev(); } }).catch(() => {});
+  const sendChat = async (inp) => {
+    const t = inp.value.trim(); if (!t) return;
+    inp.value = '';
+    const r = await api('/msg', { method: 'POST', body: { text: t } });
+    if (r.error) toast(r.error);
+  };
+  $('#chatSend').onclick = () => sendChat($('#chatIn'));
+  $('#chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat($('#chatIn')); };
+  $('#chatAll').onclick = chatModal;
+  // 🎯 habit bareng
+  const loadHabits = async () => {
+    const el = $('#habitList'); if (!el) return;
+    const hs = await api('/habits').catch(() => []); if (!el.isConnected) return;
+    el.innerHTML = (hs || []).map(h => `<div class="habrow">
+      <button class="habcheck ${h.mine ? 'on' : ''}" data-id="${h.id}" title="Check">${h.mine ? '✅' : '⬜'}</button>
+      <div class="habinfo"><b>${esc(h.name)}</b><span>${h.theirs ? '💗 dia udah' : '💭 dia belum'}${h.streak ? ` · 🔥 ${h.streak} hari` : ''}</span></div>
+      <b class="hdel" data-id="${h.id}" title="Hapus">×</b></div>`).join('') || '<div class="hsub">belum ada habit — bikin satu yuk 🎯</div>';
+    el.querySelectorAll('.habcheck').forEach(b => b.onclick = async () => { await api('/habit/' + b.dataset.id + '/check', { method: 'POST' }); loadHabits(); });
+    el.querySelectorAll('.hdel').forEach(b => b.onclick = async () => { if (confirm('Hapus habit ini?')) { await api('/habit/' + b.dataset.id, { method: 'DELETE' }); loadHabits(); } });
+  };
+  loadHabits();
+  $('#habAdd').onclick = async () => {
+    const t = $('#habIn').value.trim(); if (!t) return;
+    const r = await api('/habit', { method: 'POST', body: { name: t } });
+    if (r.error) toast(r.error); else { $('#habIn').value = ''; loadHabits(); }
+  };
+  $('#habIn').onkeydown = e => { if (e.key === 'Enter') $('#habAdd').click(); };
 
   api('/memories').then(mems => {
     const el = $('#hmems'); if (!el) return;
@@ -1196,6 +1249,38 @@ async function renderHome(v) {
   $('#mgal').onchange = memPick;
   $('#hfile').onchange = photoPick;
   $('#hgal').onchange = photoPick;
+}
+
+// ---------- MINI-CHAT ----------
+let chatCache = [];
+const renderChatPrev = () => {
+  const el = $('#chatPrev'); if (!el) return;
+  el.innerHTML = chatCache.slice(-3).map(m => {
+    const mine = m.mine ?? (m.uid === me?.user?.id);
+    return `<div class="cpmsg ${mine ? 'me' : ''}"><b>${mine ? 'Kamu' : esc(m.from_name || pname())}</b>${esc(m.text)}</div>`;
+  }).join('') || '<div class="hsub">belum ada chat — mulai ngobrol 💬</div>';
+};
+const cmsgRow = (m) => {
+  const mine = m.mine ?? (m.uid === me?.user?.id);
+  return `<div class="cmsg ${mine ? 'me' : ''}"><div class="cbub">${esc(m.text)}<i>${msgTime(m.ts)}</i></div></div>`;
+};
+function chatModal() {
+  if ($('.chatmodal')) return;
+  const el = document.createElement('div'); el.className = 'wmodal chatmodal';
+  el.innerHTML = `<div class="card" style="display:flex;flex-direction:column;max-height:82vh;width:min(92vw,420px);max-width:420px">
+    <b style="margin-bottom:8px">💬 Chat kalian</b>
+    <div id="cmlist" class="cmlist">${chatCache.map(cmsgRow).join('') || '<div class="hsub" style="text-align:center;padding:20px">belum ada chat — sapa dia duluan 👋</div>'}</div>
+    <div class="hqin" style="margin-top:8px"><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="mini">➤</button></div>
+    <button id="cmCls" class="ghost mini" style="margin-top:8px">Tutup</button></div>`;
+  document.body.appendChild(el);
+  const list = el.querySelector('#cmlist');
+  list.scrollTop = list.scrollHeight;
+  const send = async () => { const t = el.querySelector('#cmIn').value.trim(); if (!t) return; el.querySelector('#cmIn').value = ''; await api('/msg', { method: 'POST', body: { text: t } }); };
+  el.querySelector('#cmSend').onclick = send;
+  el.querySelector('#cmIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+  el.querySelector('#cmCls').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.querySelector('#cmIn').focus();
 }
 
 function photoViewer(src) {
@@ -1394,10 +1479,50 @@ async function loadPins() {
     chipsEl.querySelectorAll('.pinchip').forEach(c => c.onclick = () => { map.flyTo([+c.dataset.lat, +c.dataset.lng], 16); });
   }
   if (!pins.length) return;
-  pinLayer = L.layerGroup(pins.map(p =>
-    L.marker([p.lat, p.lng], { icon: mkIcon('#ff8fb1', '📌') })
-      .bindTooltip(`${esc(p.name)} · ${p.mine ? 'kamu' : esc(p.by_name)}`, { direction: 'top' })
-  )).addTo(map);
+  pinLayer = L.layerGroup().addTo(map);
+  pins.forEach(p => {
+    const m = L.marker([p.lat, p.lng], { icon: mkIcon('#ff8fb1', p.img ? '🖼️' : '📌') }).addTo(pinLayer);
+    m.bindTooltip(`${esc(p.name)} · ${p.mine ? 'kamu' : esc(p.by_name)}`, { direction: 'top' });
+    m.on('click', () => pinModal(p));
+  });
+}
+// 📌 pin kenangan — tap marker → lihat/tempel foto momen di tempat itu
+function pinModal(p) {
+  const el = document.createElement('div'); el.className = 'wmodal';
+  el.innerHTML = `<div class="wbox card" style="width:min(88vw,340px);text-align:center">
+    <b style="font-size:17px">📌 ${esc(p.name)}</b>
+    <div class="muted" style="font-size:12px">ditandai ${p.mine ? 'kamu' : esc(p.by_name)}</div>
+    ${p.img ? `<img src="${p.img}" style="width:100%;border-radius:14px;margin:10px 0;cursor:zoom-in" class="pimg">` : '<div class="hsub" style="margin:12px 0">belum ada foto kenangan di sini — tempel satu yuk 📷</div>'}
+    <div class="hqin" style="gap:8px">
+      <button id="pCam" class="mini ghost" style="flex:1">📷 Kamera</button>
+      <button id="pGal" class="mini ghost" style="flex:1">🖼️ Galeri</button>
+    </div>
+    ${p.mine ? '<button id="pDel" class="mini ghost">🗑 Hapus pin</button>' : ''}
+    <button id="pCls" class="ghost mini">Tutup</button>
+    <input id="pfile" type="file" accept="image/*" hidden><input id="pcamf" type="file" accept="image/*" capture="environment" hidden></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.pimg')?.addEventListener('click', ev => photoViewer(ev.target.src));
+  el.querySelector('#pCls').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.querySelector('#pDel')?.addEventListener('click', async () => { await api('/pin/' + p.id, { method: 'DELETE' }); toast('Pin dihapus'); el.remove(); loadPins(); });
+  const pick = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 640 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      api('/pin/' + p.id + '/photo', { method: 'PUT', body: { img: c.toDataURL('image/jpeg', .7) } }).then(r => {
+        if (r.ok) { toast('Foto kenangan ditempel 📌🖼️'); el.remove(); loadPins(); } else toast(r.error || 'gagal');
+      });
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(f);
+  };
+  el.querySelector('#pCam').onclick = () => el.querySelector('#pcamf').click();
+  el.querySelector('#pGal').onclick = () => el.querySelector('#pfile').click();
+  el.querySelector('#pfile').onchange = pick;
+  el.querySelector('#pcamf').onchange = pick;
 }
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }

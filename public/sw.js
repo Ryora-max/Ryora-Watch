@@ -1,4 +1,4 @@
-const CACHE = 'ryora-v56';
+const CACHE = 'ryora-v57';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => e.waitUntil(clients.claim().then(() => caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))))));
@@ -29,11 +29,13 @@ self.addEventListener('push', e => {
     icon: '/icon.svg', badge: '/icon.svg',
     tag: d.tag || 'ryora', renotify: true,
     vibrate: [200, 100, 200],
-    data: { url: '/' },
+    actions: d.act === 'missback' ? [{ action: 'missback', title: '💓 Kangen balik' }] : [],
+    data: { url: d.act === 'missback' ? '/?missback=1' : '/' },
   }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
+  const url = e.action === 'missback' ? '/?missback=1' : (e.notification.data?.url || '/');
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs =>
-    cs.length ? cs[0].focus() : clients.openWindow('/')));
+    cs.length ? (cs[0].navigate ? cs[0].navigate(url).then(c => c.focus()) : cs[0].focus()) : clients.openWindow(url)));
 });
