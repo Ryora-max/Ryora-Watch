@@ -1,7 +1,16 @@
 // AI "SkySea" — teman hidup yang bisa diajak ngobrol apa aja.
 // Arsitektur: data faktual (jadwal/lokasi/kangen/cuaca) → jawaban lokal instan.
 // Semua obrolan lain → Gemini (dengan riwayat), fallback lokal kalau gagal/lambat.
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview';
+// load .env manual cuma buat GEMINI_* — server jalan `node server` tanpa --env-file
+// tetap bisa AI (TURSO dll sengaja nggak disentuh biar data lokal nggak pindah).
+import { readFileSync } from 'node:fs';
+try {
+  for (const line of readFileSync('.env', 'utf8').split('\n')) {
+    const m = line.match(/^GEMINI_(API_KEY|MODEL)=(.+)$/);
+    if (m && !process.env['GEMINI_' + m[1]]) process.env['GEMINI_' + m[1]] = m[2].trim();
+  }
+} catch {}
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const fmt = (ts) => new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const ago = (ts) => {
@@ -87,6 +96,21 @@ Jadwal hari ini: ${c.schedules.map(s => `${fmt(s.start_time)} ${s.title}`).join(
 ${c.facts?.length ? `YANG KAMU INGAT SOAL ${c.user.name.toUpperCase()}: ${c.facts.join('; ')}.` : ''}
 Kalau momennya pas, boleh saranin interaksi di app ("coba pencet 💓 ke dia", "ajak main ular tangga gih", "nabung bareng yuk"). Tapi natural aja, jangan maksa.`;
 
+const MODEL_FALLBACKS = [MODEL, 'gemini-2.5-flash-lite', 'gemini-flash-lite-latest'];
+async function geminiCall(key, ctx, contents, model) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt(ctx) }] },
+      contents,
+      generationConfig: { maxOutputTokens: 800, temperature: 1.0 },
+    }),
+    signal: AbortSignal.timeout(14000),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('').trim() || null;
+}
 async function gemini(ctx, msg) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
@@ -94,21 +118,13 @@ async function gemini(ctx, msg) {
     ...(ctx.history || []).map(h => ({ role: h.role === 'model' ? 'model' : 'user', parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: msg }] },
   ];
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt(ctx) }] },
-        contents,
-        generationConfig: { maxOutputTokens: 800, temperature: 1.0 },
-      }),
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('').trim();
-    return reply || null;
-  } catch { return null; }
+  for (const m of MODEL_FALLBACKS) {
+    try {
+      const r = await geminiCall(key, ctx, contents, m);
+      if (r) return r;
+    } catch { /* coba model berikutnya */ }
+  }
+  return null;
 }
 
 // ========== FALLBACK LOKAL — kalau Gemini mati/lambat ==========

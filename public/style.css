@@ -293,7 +293,6 @@ select option { background:var(--card); color:var(--text); }
 .tttc.x { background:#5cc8ff22; border-color:#5cc8ff66; }
 .tttc.o { background:#ff8fb122; border-color:#ff8fb166; }
 /* tebak doodle */
-#guessCv { width:100%; border-radius:12px; background:#101c33; touch-action:none; }
 /* quiz kenal */
 .qrow { margin-bottom:10px; padding:8px 10px; background:var(--card2); border-radius:10px; }
 .qq { font-size:12px; font-weight:700; color:var(--dim); margin-bottom:4px; }
@@ -438,7 +437,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .goaltop span { font-size:10px; color:var(--dim); white-space:nowrap; }
 .goalhit { margin-top:7px; text-align:center; font-size:12px; font-weight:800; color:#ffd166; }
 /* sesi random */
-.randgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .randbtn { display:flex; flex-direction:column; align-items:center; gap:5px; padding:13px 6px; font-size:22px; background:var(--soft); border:1px solid var(--line); border-radius:14px; }
 .randbtn span { font-size:11px; font-weight:600; }
 .randbtn:active { transform:scale(.94); }
@@ -560,10 +558,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mwrow .mwwho{font-size:11px;color:var(--dim);width:64px;flex-shrink:0}
 .mwc{flex:1;height:24px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:7px;color:var(--dim)}
 .mwc.today{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
-#doodle{width:100%;max-width:280px;aspect-ratio:1;border-radius:16px;border:2px solid var(--line);display:block;margin:6px auto 8px;touch-action:none;cursor:crosshair}
-.penrow{display:flex;gap:10px;justify-content:center;margin-bottom:10px}
-.pen{width:28px;height:28px;border-radius:50%;border:2px solid var(--soft);padding:0;box-shadow:none}
-.pen.on{border-color:#fff;transform:scale(1.2);box-shadow:0 0 0 3px var(--soft)}
 .mday{background:linear-gradient(135deg,rgba(255,143,177,.25),rgba(92,200,255,.18)) !important;text-align:center;padding:18px !important;display:flex;flex-direction:column;gap:4px}
 .mday b{font-size:20px}
 .mday span{font-size:13px;color:var(--dim)}
@@ -659,7 +653,7 @@ h1,h2,h3,.screen h1,.pname,.pbt,.missttl,.nobx b,.savbal,.mascot-hi,.gstage-t { 
 input,textarea,select { background:var(--soft); border:1px solid var(--line); }
 .code { background:var(--soft); color:var(--accent); border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent); }
 .card,.hcard,.playbox,.item,.hchip,.statcell,.expchip,.randbtn,.league,.settings,.geocard,.locpanel,.chatmodal .card { box-shadow:0 10px 30px var(--shadow); }
-.mood,.tswatch,.suit,.tod,.pen,.sbtn,.care,.iconbtn,.geotgl,.chip,.avpick,.pinchip { box-shadow:0 4px 14px var(--shadow); }
+.mood,.tswatch,.suit,.tod,.sbtn,.care,.iconbtn,.geotgl,.chip,.avpick,.pinchip { box-shadow:0 4px 14px var(--shadow); }
 .toast { background:var(--card); box-shadow:0 12px 34px var(--shadow); color:var(--text); }
 .moodprompt { background:var(--card); border:1px solid var(--line); color:var(--text); box-shadow:0 14px 40px var(--shadow); }
 .nobx { background:var(--card); border-radius:24px; padding:26px 30px; box-shadow:0 24px 70px var(--shadow); color:var(--text); }
@@ -737,3 +731,13 @@ button.mini.ghost { background:var(--soft); }
 .galsrc { position:absolute; left:4px; bottom:4px; right:4px; font-size:8.5px; font-weight:700; color:#fff;
   background:rgba(60,45,95,.55); backdrop-filter:blur(4px); border-radius:7px; padding:2px 6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* coinflip — teks kontras + row */
+.randbtn.coinflip { flex-direction:row; }
+.randbtn.coinflip b { color:var(--text); font-family:'Fredoka',sans-serif; }
+.randbtn.coinflip i { color:var(--dim); }
+
+/* photo viewer — bar aksi */
+.pvwrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.pvbar { display:flex; gap:10px; }
+.pvbtn { padding:10px 20px; border-radius:12px; font-weight:700; font-size:13px; background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); backdrop-filter:blur(8px); }

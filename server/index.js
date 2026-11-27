@@ -721,7 +721,7 @@ app.get('/api/wrapped', auth, (req, res) => {
 app.get('/api/export', auth, (req, res) => {
   if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
   const partner = store.partnerOf(req.user);
-  res.setHeader('Content-Disposition', 'attachment; filename="ryora-export.json"');
+  res.setHeader('Content-Disposition', 'attachment; filename="lynx-love-export.json"');
   res.json({ exported_at: new Date().toISOString(), names: [req.user.name, partner?.name], ...store.exportPair(req.user.pair_id) });
 });
 

@@ -821,7 +821,7 @@ function show(tab) {
         <button id="focusBtn" class="sbtn" style="--c:#4cbd95;width:100%;margin-top:8px"><em class="ic icm">⏱️</em><span>Fokus bareng — timer 25 mnt sinkron</span></button>
       </div>
       <div class="msect"><b><em class="ic icg">🪙</em> Acak bareng <span class="hsub">— hasil sama di dua HP, nggak bisa curang</span></b>
-        <button class="randbtn coinflip" data-t="coin"><span class="coinface">🪙</span><span><b>Lempar koin</b><i>ANGKA atau GAMBAR — biar koin yang mutusin</i></span></button>
+        <button class="randbtn coinflip" data-t="coin"><svg class="coinface" viewBox="0 0 48 48" width="42" height="42"><defs><linearGradient id="coing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe6a8"/><stop offset=".55" stop-color="#f0b93c"/><stop offset="1" stop-color="#d99a1f"/></linearGradient></defs><circle cx="24" cy="24" r="21" fill="url(#coing)" stroke="#c98a12" stroke-width="2"/><circle cx="24" cy="24" r="15" fill="none" stroke="#fff3cf" stroke-width="2.5" stroke-dasharray="4 5"/><text x="24" y="30.5" text-anchor="middle" font-size="17" font-weight="800" fill="#8a5e00" font-family="Fredoka,sans-serif">L</text></svg><span><b>Lempar koin</b><i>ANGKA atau GAMBAR — biar koin yang mutusin</i></span></button>
       </div>
       <div class="msect"><b><em class="ic icp">💌</em> Kirim sesuatu</b>
         <div class="sendgrid">
@@ -1547,8 +1547,15 @@ const lynxSVG = (mood = 'idle') => {
 function photoViewer(src) {
   const el = document.createElement('div'); el.className = 'wmodal';
   el.style.background = 'rgba(5,15,30,.94)';
-  el.innerHTML = `<img src="${src}" style="max-width:94vw;max-height:86vh;border-radius:14px;box-shadow:0 10px 60px rgba(0,0,0,.6)">`;
-  el.onclick = () => el.remove();
+  el.innerHTML = `<div class="pvwrap"><img src="${src}" style="max-width:94vw;max-height:80vh;border-radius:14px;box-shadow:0 10px 60px rgba(0,0,0,.6)">
+    <div class="pvbar"><button id="pvDl" class="pvbtn">⬇️ Simpan</button><button id="pvX" class="pvbtn">✕ Tutup</button></div></div>`;
+  el.onclick = (e) => { if (!e.target.closest('.pvbar')) el.remove(); };
+  el.querySelector('#pvDl').onclick = () => {
+    const a = document.createElement('a'); a.href = src;
+    a.download = 'lynx-' + new Date().toISOString().slice(0, 10) + '.jpg';
+    a.click(); toast('📥 Foto disimpan');
+  };
+  el.querySelector('#pvX').onclick = () => el.remove();
   document.body.appendChild(el);
 }
 

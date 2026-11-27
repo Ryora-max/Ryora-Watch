@@ -296,6 +296,17 @@ export const store = {
     voices: db.prepare('SELECT user_id,audio,dur,ts FROM voices WHERE pair_id=?').all(pairId),
     bucket: db.prepare('SELECT text,done,ts FROM bucket WHERE pair_id=?').all(pairId),
     miss_events: db.prepare('SELECT from_user,pattern,ts FROM miss_events WHERE pair_id=?').all(pairId),
+    chat: db.prepare('SELECT user_id,kind,text,ts FROM couple_msgs WHERE pair_id=? ORDER BY ts').all(pairId),
+    letters: db.prepare('SELECT user_id,title,text,ts FROM letters WHERE pair_id=?').all(pairId),
+    capsules: db.prepare('SELECT user_id,text,unlock_ts,ts FROM capsules WHERE pair_id=?').all(pairId),
+    pins: db.prepare('SELECT user_id,name,lat,lng,img,ts FROM pins WHERE pair_id=?').all(pairId),
+    expenses: db.prepare('SELECT user_id,kind,pot,amount,note,ts FROM expenses WHERE pair_id=?').all(pairId),
+    habits: db.prepare('SELECT id,name,by,ts FROM habits WHERE pair_id=?').all(pairId),
+    habit_checks: db.prepare('SELECT hc.habit_id,hc.user_id,hc.day,hc.ts FROM habit_checks hc JOIN habits h ON h.id=hc.habit_id WHERE h.pair_id=?').all(pairId),
+    quiz: db.prepare('SELECT day,user_id,answers,ts FROM quiz WHERE pair_id=?').all(pairId),
+    games: db.prepare('SELECT game,winner_id,ts FROM suit_results WHERE pair_id=? ORDER BY ts').all(pairId),
+    moods: db.prepare('SELECT user_id,mood,ts FROM mood_log WHERE pair_id=?').all(pairId),
+    goal: (() => { try { return JSON.parse(db.prepare('SELECT v FROM kv WHERE k=?').get('goal:' + pairId)?.v || 'null'); } catch { return null; } })(),
   }),
   facts: (uid, limit = 20) => db.prepare('SELECT fact FROM ai_facts WHERE user_id=? ORDER BY ts DESC LIMIT ?').all(uid, limit).map(r => r.fact),
   addFact: (uid, fact) => {
@@ -312,6 +323,10 @@ export const store = {
     db.prepare('SELECT user_id uid, caption, ts FROM memories WHERE pair_id=? ORDER BY ts DESC LIMIT 15').all(pairId).forEach(r => push('memory', r.uid, '🖼️ kenangan baru' + (r.caption ? ': "' + r.caption.slice(0, 30) + '"' : ''), r.ts));
     db.prepare('SELECT user_id uid, dur, ts FROM voices WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('voice', r.uid, '🎤 pesan suara ' + r.dur + 'd', r.ts));
     db.prepare('SELECT text, done, created_by uid, ts FROM bucket WHERE pair_id=? ORDER BY ts DESC LIMIT 10').all(pairId).forEach(r => push('bucket', r.uid, (r.done ? '🪣✅ ' : '🪣 impian baru: ') + r.text.slice(0, 30), r.ts));
+    db.prepare('SELECT user_id uid, kind, pot, amount, note, ts FROM expenses WHERE pair_id=? ORDER BY ts DESC LIMIT 15').all(pairId).forEach(r => push('exp', r.uid, (r.pot === 'sav' ? '🏦 ' : '💰 ') + (r.kind === 'in' ? '+' : '−') + 'Rp' + Math.round(r.amount / 1000) + 'rb' + (r.note ? ' — ' + r.note.slice(0, 25) : ''), r.ts));
+    db.prepare('SELECT user_id uid, title, ts FROM letters WHERE pair_id=? ORDER BY ts DESC LIMIT 8').all(pairId).forEach(r => push('letter', r.uid, '💌 surat: "' + (r.title || '').slice(0, 30) + '"', r.ts));
+    db.prepare('SELECT user_id uid, ts FROM capsules WHERE pair_id=? ORDER BY ts DESC LIMIT 6').all(pairId).forEach(r => push('capsule', r.uid, '🎁 kirim kado', r.ts));
+    db.prepare('SELECT user_id uid, name, ts FROM pins WHERE pair_id=? ORDER BY ts DESC LIMIT 8').all(pairId).forEach(r => push('pin', r.uid, '📌 pin: ' + (r.name || '').slice(0, 30), r.ts));
     return rows.sort((a, b) => b.ts - a.ts).slice(0, limit);
   },
   addPush: (uid, sub) => db.prepare('INSERT OR REPLACE INTO push_subs (user_id,endpoint,auth,p256dh,ts) VALUES (?,?,?,?,?)').run(uid, sub.endpoint, sub.keys.auth, sub.keys.p256dh, Date.now()),
