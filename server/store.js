@@ -352,11 +352,14 @@ export const store = {
 
   // --- mini-chat pasangan ---
   addCMsg: (pairId, uid, text, kind = 'text') => {
-    db.prepare('INSERT INTO couple_msgs (id,pair_id,user_id,text,kind,ts) VALUES (?,?,?,?,?,?)').run(id(), pairId, uid, text, kind, Date.now());
+    const mid = id();
+    db.prepare('INSERT INTO couple_msgs (id,pair_id,user_id,text,kind,ts) VALUES (?,?,?,?,?,?)').run(mid, pairId, uid, text, kind, Date.now());
     db.prepare('DELETE FROM couple_msgs WHERE pair_id=? AND id NOT IN (SELECT id FROM couple_msgs WHERE pair_id=? ORDER BY ts DESC LIMIT 400)').run(pairId, pairId);
+    return mid;
   },
   cmsgs: (pairId, n = 80) => db.prepare('SELECT m.*, u.name from_name FROM couple_msgs m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? ORDER BY m.ts DESC LIMIT ?').all(pairId, n).reverse(),
   delCMsg: (pairId, msgId, uid) => db.prepare('DELETE FROM couple_msgs WHERE pair_id=? AND id=? AND user_id=?').run(pairId, msgId, uid),
+  delPhoto: (pairId, day, uid) => db.prepare('DELETE FROM photos WHERE pair_id=? AND day=? AND user_id=?').run(pairId, day, uid),
 
   // --- habit bareng ---
   addHabit: (pairId, uid, name) => { db.prepare('INSERT INTO habits (id,pair_id,name,by,ts) VALUES (?,?,?,?,?)').run(id(), pairId, name, uid, Date.now()); },
@@ -413,10 +416,10 @@ export const store = {
   },
   // galeri — semua media kalian di satu tempat
   gallery: (pairId) => {
-    const mems = db.prepare('SELECT m.id, m.img, m.caption, m.ts, u.name by_name FROM memories m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? AND m.img IS NOT NULL ORDER BY m.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'mem' }));
-    const chat = db.prepare("SELECT cm.id, cm.text img, '' caption, cm.ts, u.name by_name FROM couple_msgs cm JOIN users u ON u.id=cm.user_id WHERE cm.pair_id=? AND cm.kind='img' ORDER BY cm.ts DESC LIMIT 40").all(pairId).map(r => ({ ...r, src: 'chat' }));
-    const daily = db.prepare('SELECT p.img, p.caption, p.ts, u.name by_name FROM photos p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'foto' }));
-    const pinph = db.prepare('SELECT p.id, p.img, p.name caption, p.ts, u.name by_name FROM pins p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 20').all(pairId).map(r => ({ ...r, src: 'pin' }));
+    const mems = db.prepare('SELECT m.id, m.user_id uid, m.img, m.caption, m.ts, u.name by_name FROM memories m JOIN users u ON u.id=m.user_id WHERE m.pair_id=? AND m.img IS NOT NULL ORDER BY m.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'mem' }));
+    const chat = db.prepare("SELECT cm.id, cm.user_id uid, cm.text img, '' caption, cm.ts, u.name by_name FROM couple_msgs cm JOIN users u ON u.id=cm.user_id WHERE cm.pair_id=? AND cm.kind='img' ORDER BY cm.ts DESC LIMIT 40").all(pairId).map(r => ({ ...r, src: 'chat' }));
+    const daily = db.prepare('SELECT p.day id, p.user_id uid, p.img, p.caption, p.ts, u.name by_name FROM photos p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 40').all(pairId).map(r => ({ ...r, src: 'foto' }));
+    const pinph = db.prepare('SELECT p.id, p.user_id uid, p.img, p.name caption, p.ts, u.name by_name FROM pins p JOIN users u ON u.id=p.user_id WHERE p.pair_id=? AND p.img IS NOT NULL ORDER BY p.ts DESC LIMIT 20').all(pairId).map(r => ({ ...r, src: 'pin' }));
     return [...mems, ...chat, ...daily, ...pinph].sort((a, b) => b.ts - a.ts).slice(0, 60);
   },
   monthStats: (pairId, since) => ({

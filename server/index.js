@@ -294,9 +294,15 @@ app.post('/api/msg', auth, (req, res) => {
   const now = Date.now();
   if (now - (lastMiss.get('m' + req.user.id) || 0) < 800) return res.json({ ok: true });
   lastMiss.set('m' + req.user.id, now);
-  store.addCMsg(req.user.pair_id, req.user.id, text, kind);
-  io.to(req.user.pair_id).emit('msg:new', { from: req.user.name, text, kind, uid: req.user.id, ts: now });
+  const mid = store.addCMsg(req.user.pair_id, req.user.id, text, kind);
+  io.to(req.user.pair_id).emit('msg:new', { id: mid, from: req.user.name, text, kind, uid: req.user.id, ts: now });
   pushPartner(req.user, { title: '💬 ' + req.user.name, body: kind === 'img' ? '📷 kirim foto' : text.slice(0, 120), tag: 'chat' });
+  res.json({ ok: true });
+});
+app.delete('/api/msg/:id', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delCMsg(req.user.pair_id, req.params.id, req.user.id);
+  io.to(req.user.pair_id).emit('msg:del', { id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -748,6 +754,12 @@ app.post('/api/photo', auth, (req, res) => {
   store.setPhoto(req.user.pair_id, dayKey(), req.user.id, img, String(req.body?.caption || '').slice(0, 100));
   io.to(req.user.pair_id).emit('home:changed');
   pushPartner(req.user, { title: '📸 LYNX LIFE', body: `${req.user.name} kirim foto hari ini`, tag: 'photo' });
+  res.json({ ok: true });
+});
+app.delete('/api/photo/:day', auth, (req, res) => {
+  if (!req.user.pair_id) return res.status(400).json({ error: 'invalid' });
+  store.delPhoto(req.user.pair_id, req.params.day, req.user.id);
+  io.to(req.user.pair_id).emit('home:changed');
   res.json({ ok: true });
 });
 

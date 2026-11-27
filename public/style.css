@@ -341,9 +341,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hdays b { font-size:20px; }
 .hdays span { font-size:10px; color:var(--dim); }
 .hchips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
-.hchip { flex:1 1 96px; max-width:150px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px;
-  font-size:12px; font-weight:600; text-align:center; cursor:pointer; transition:transform .12s;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hchip { flex:1 1 96px; max-width:170px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px;
+  font-size:11.5px; font-weight:600; text-align:center; cursor:pointer; transition:transform .12s;
+  line-height:1.3; }
 .hchip:active { transform:scale(.95); }
 .hlabel { font-size:12px; font-weight:700; letter-spacing:.6px; color:var(--accent); }
 .hq { font-size:16px; font-weight:600; line-height:1.45; }
@@ -741,3 +741,48 @@ button.mini.ghost { background:var(--soft); }
 .pvwrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
 .pvbar { display:flex; gap:10px; }
 .pvbtn { padding:10px 20px; border-radius:12px; font-weight:700; font-size:13px; background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); backdrop-filter:blur(8px); }
+
+/* ================= CHAT PAGE — layar penuh dedicated ================= */
+.chatpage { padding:0; background:transparent; }
+.chatpg { width:100%; max-width:560px; height:100%; display:flex; flex-direction:column; background:var(--bodybg); overflow:hidden; }
+@media(min-width:640px){ .chatpg { border-radius:26px; height:92%; box-shadow:0 30px 80px rgba(60,40,120,.35); border:1px solid var(--line); } }
+.cphd { display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--card); border-bottom:1px solid var(--line); box-shadow:0 4px 18px var(--shadow); z-index:2; }
+.cphd .av,.cphd .pav { width:38px; height:38px; border-radius:50%; flex-shrink:0; }
+.cpback { font-size:20px; padding:4px 10px; border-radius:12px; color:var(--muted); }
+.cpback:active { transform:scale(.9); }
+.cpinfo { flex:1; min-width:0; }
+.cpinfo b { font-family:'Fredoka','Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cpinfo span { font-size:11px; color:var(--muted); }
+.chatpg .cmlist { flex:1; padding:16px 14px; min-height:0; }
+.cpempty { margin:auto; text-align:center; color:var(--muted); font-size:14px; line-height:1.6; }
+.cpempty span { font-size:46px; display:block; margin-bottom:10px; }
+.cpempty i { font-style:normal; opacity:.65; font-size:12px; }
+.cpin { display:flex; gap:8px; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:var(--card); border-top:1px solid var(--line); }
+.cpin input { flex:1; min-width:0; }
+.cpbtn,.cpsend { width:44px; height:44px; border-radius:14px; font-size:17px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.cpbtn { background:var(--tint); }
+.cpsend { background:var(--grad); color:#fff; box-shadow:0 6px 16px var(--shadow); }
+.cpbtn:active,.cpsend:active { transform:scale(.9); }
+
+/* ================= SIDE NAVBAR — layar lebar (tablet/desktop) ================= */
+#col { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; }
+@media (min-width:860px) {
+  #app { flex-direction:row; max-width:980px; }
+  nav { order:-1; flex-direction:column; width:92px; margin:10px 0 10px 10px; border-radius:24px; justify-content:center; gap:12px; padding:14px 8px; }
+  nav button { flex-direction:column; gap:4px; padding:10px 4px; }
+  nav button span { font-size:10px; }
+  #col { flex:1; }
+}
+
+/* delete controls — chat bubble & galeri */
+.cmdel { position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:#ff8fa8; color:#fff; font-size:12px; line-height:18px; text-align:center; cursor:pointer; opacity:0; transition:opacity .15s; box-shadow:0 2px 6px rgba(0,0,0,.2); font-style:normal; }
+.cmsg.me .cbub { position:relative; }
+.cmsg.me:hover .cmdel, .cmsg.me .cmdel:focus { opacity:1; }
+@media(hover:none){ .cmsg.me .cmdel { opacity:.85; } }
+.galdel { position:absolute; top:5px; right:5px; width:22px; height:22px; border-radius:50%; background:rgba(255,80,110,.92); color:#fff; font-size:14px; line-height:22px; text-align:center; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.25); font-style:normal; z-index:2; }
+
+/* chat page — fix base width:100% yang ngerusak flex */
+.cpback { width:auto; flex:none; }
+.cpin input { width:auto; }
+.chatpg,.cpin,.cphd { box-sizing:border-box; }
+.cpin { width:100%; }

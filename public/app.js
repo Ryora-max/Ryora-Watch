@@ -212,6 +212,7 @@ window.addEventListener('online', () => conn('off'));
 
 async function mainUI() {
   app.innerHTML = `
+  <div id="col">
   <header>
     <div class="who">${avHtml(me.partner)}
       <div class="whoinfo"><div class="pname">${esc(pname())}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
@@ -221,6 +222,7 @@ async function mainUI() {
   </header>
   <div id="connBar" style="display:none"></div>
   <div id="view"></div>
+  </div>
   <nav>
     <button data-t="home" class="on">🏠<span>Home</span></button>
     <button data-t="map">📡<span>Live</span></button>
@@ -304,7 +306,7 @@ function connectSocket() {
   });
   socket.on('disconnect', () => conn('off'));
   socket.on('connect_error', () => conn('off'));
-  socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; updateSeen(); });
+  socket.on('partner:status', ({ online, lastSeen }) => { partnerOnline = !!online; if (!online) partnerSeen = lastSeen || Date.now(); $('#dot').textContent = online ? '🟢' : '⚪'; updateSeen(); const cs = $('#cpStat'); if (cs) cs.textContent = online ? '🟢 online' : '⚪ aktif ' + agoText(partnerSeen); });
   socket.on('partner:battery', ({ level }) => { $('#pbatt').textContent = ` ${level}%`; });
   socket.on('schedules:changed', async () => {
     schedCache = await api('/schedules');
@@ -436,6 +438,11 @@ function connectSocket() {
       list.scrollTop = list.scrollHeight;
     }
     if (m.uid !== me.user.id) { ding(); navigator.vibrate?.(120); if (!list) toast(m.kind === 'img' ? `📷 ${m.from} kirim foto` : `💬 ${m.from}: ${m.text.slice(0, 60)}`, 3500); }
+  });
+  socket.on('msg:del', ({ id }) => {
+    chatCache = chatCache.filter(x => x.id !== id);
+    document.querySelectorAll(`.cmsg[data-mid="${id}"]`).forEach(e => e.remove());
+    renderChatPrev();
   });
   socket.on('letter:new', ({ from }) => {
     ding(); navigator.vibrate?.([250, 100, 250]);
@@ -1092,9 +1099,15 @@ function renderKita(v) {
     const g = await api('/gallery').catch(() => null);
     if (!grid.isConnected) return;
     const srcIco = { mem: '🖼️', chat: '💬', foto: '📸', pin: '📌' };
-    grid.innerHTML = (g?.list || []).length ? g.list.map(m => `<div class="galcell" data-id="${m.id || m.ts}"><img src="${m.img}" loading="lazy" alt=""><span class="galsrc">${srcIco[m.src] || '🖼️'} ${esc(m.caption || m.by_name || '')}</span></div>`).join('')
+    const delUrl = { mem: '/memory/', chat: '/msg/', foto: '/photo/', pin: '/pin/' };
+    grid.innerHTML = (g?.list || []).length ? g.list.map(m => `<div class="galcell"><img src="${m.img}" loading="lazy" alt=""><span class="galsrc">${srcIco[m.src] || '🖼️'} ${esc(m.caption || m.by_name || '')}</span>${m.uid === me.user.id ? `<b class="galdel" data-src="${m.src}" data-id="${m.id}">×</b>` : ''}</div>`).join('')
       : '<div class="hsub">belum ada foto — kirim foto di chat atau momen di Home 📸</div>';
     grid.querySelectorAll('.galcell img').forEach(im => im.onclick = () => photoViewer(im.src));
+    grid.querySelectorAll('.galdel').forEach(b => b.onclick = async (e) => {
+      e.stopPropagation();
+      const r = await api(delUrl[b.dataset.src] + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
+      if (r?.ok !== false) { b.closest('.galcell').remove(); toast('Dihapus dari galeri 🗑️'); }
+    });
     const acts = (await api('/home').catch(() => null))?.feed || [];
     act.innerHTML = acts.length ? `<div class="hlabel" style="margin:4px 0 6px">⚡ Aktivitas terbaru</div>` + acts.slice(0, 8).map(f => `<div class="feedrow"><span class="fwho ${f.mine ? '' : 'them'}">${esc(f.mine ? 'Kamu' : f.who)}</span><span class="ftxt">${esc(f.text)}</span><span class="fwhen">${agoText(f.ts)}</span></div>`).join('') : '';
   })();
@@ -1453,8 +1466,20 @@ const renderChatPrev = () => {
 const cmsgRow = (m) => {
   const mine = m.mine ?? (m.uid === me?.user?.id);
   const body = m.kind === 'img' ? `<img class="cimg" src="${m.text}">` : esc(m.text);
-  return `<div class="cmsg ${mine ? 'me' : ''}"><div class="cbub">${body}<i>${msgTime(m.ts)}</i></div></div>`;
+  return `<div class="cmsg ${mine ? 'me' : ''}" ${m.id ? `data-mid="${m.id}"` : ''}><div class="cbub">${body}<i>${msgTime(m.ts)}</i>${mine && m.id ? `<b class="cmdel" data-id="${m.id}">×</b>` : ''}</div></div>`;
 };
+// delegation hapus chat — berlaku di mini-chat & modal
+document.addEventListener('click', async (e) => {
+  const d = e.target.closest('.cmdel');
+  if (!d) return;
+  e.stopPropagation();
+  const r = await api('/msg/' + d.dataset.id, { method: 'DELETE' });
+  if (r?.ok !== false) {
+    chatCache = chatCache.filter(x => x.id !== d.dataset.id);
+    d.closest('.cmsg')?.remove();
+    toast('Pesan dihapus');
+  }
+});
 // kirim foto di chat — resize 640 lalu kirim kind:'img'
 const sendChatImg = (file) => {
   if (!file) return;
@@ -1470,12 +1495,12 @@ const sendChatImg = (file) => {
 };
 function chatModal() {
   if ($('.chatmodal')) return;
-  const el = document.createElement('div'); el.className = 'wmodal chatmodal';
-  el.innerHTML = `<div class="card" style="display:flex;flex-direction:column;max-height:82vh;width:min(92vw,420px);max-width:420px">
-    <b style="margin-bottom:8px">💬 Chat kalian</b>
-    <div id="cmlist" class="cmlist">${chatCache.map(cmsgRow).join('') || '<div class="hsub" style="text-align:center;padding:20px">belum ada chat — sapa dia duluan 👋</div>'}</div>
-    <div class="hqin" style="margin-top:8px"><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="mini">➤</button><button id="cmImg" class="mini ghost" title="Kirim foto">📷</button><input type="file" id="cmFile" accept="image/*" capture="environment" hidden></div>
-    <button id="cmCls" class="ghost mini" style="margin-top:8px">Tutup</button></div>`;
+  const el = document.createElement('div'); el.className = 'wmodal chatmodal chatpage';
+  el.innerHTML = `<div class="chatpg">
+    <div class="cphd"><button id="cmCls" class="cpback">←</button>${avHtml(me.partner)}<div class="cpinfo"><b>${esc(pname())}</b><span id="cpStat">${partnerOnline ? '🟢 online' : partnerSeen ? '⚪ aktif ' + agoText(partnerSeen) : '⚪ offline'}</span></div></div>
+    <div id="cmlist" class="cmlist">${chatCache.map(cmsgRow).join('') || `<div class="cpempty"><span>💬</span>belum ada chat<br><i>sapa ${esc(pname())} duluan 👋</i></div>`}</div>
+    <div class="cpin"><button id="cmImg" class="cpbtn" title="Kirim foto">📷</button><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="cpsend">➤</button><input type="file" id="cmFile" accept="image/*" capture="environment" hidden></div>
+  </div>`;
   document.body.appendChild(el);
   const list = el.querySelector('#cmlist');
   list.scrollTop = list.scrollHeight;
@@ -1486,7 +1511,6 @@ function chatModal() {
   el.querySelector('#cmFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
   list.onclick = e => { if (e.target.classList.contains('cimg')) photoViewer(e.target.src); };
   el.querySelector('#cmCls').onclick = () => el.remove();
-  el.onclick = e => { if (e.target === el) el.remove(); };
   el.querySelector('#cmIn').focus();
 }
 
