@@ -859,6 +859,7 @@ function _showTab(tab) {
   }
   if (tab === 'miss') {
     v.innerHTML = `<div class="misspage">
+      <img class="miss-mascot" src="/mascot-love.png" alt="">
       <button id="missBig"><span class="hb">💓</span><span id="tapN"></span></button>
       <div class="muted">tap berkali-kali buat sinyal lebih kuat</div>
       <div class="missstats" id="missStats"></div>
@@ -1009,7 +1010,7 @@ function _showTab(tab) {
   }
   if (tab === 'ai') {
     v.innerHTML = `<div id="chat">
-      <div class="aihead"><div class="aiavatar" id="aiprof" style="cursor:pointer">✦</div><div style="cursor:pointer" id="aiprof2"><b>${esc(me.user.ai_name || 'AI')}</b><span>${me.user.ai_name ? 'bestie AI-mu · tap = profil' : 'tap = kasih nama'}</span></div>
+      <div class="aihead"><div class="aiavatar aiart" id="aiprof" style="cursor:pointer"><img src="/mascot-ai.png" alt=""></div><div style="cursor:pointer" id="aiprof2"><b>${esc(me.user.ai_name || 'AI')}</b><span>${me.user.ai_name ? 'bestie AI-mu · tap = profil' : 'tap = kasih nama'}</span></div>
       <button id="vmode" class="mini" title="Mode suara: ngobrol hands-free">🎙️</button>
       <button id="aiToggle" class="mini">${me.user.ai_enabled ? '🔊 ON' : '🔇 OFF'}</button></div>
       <div id="msgs"></div>
@@ -1304,7 +1305,7 @@ async function renderHome(v) {
   const mMood = (hr >= 23 || hr < 6 || darkT) ? 'sleep' : (!answered ? 'letter' : (p.mood ? 'happy' : 'idle'));
   const greet = { sleep: 'udah larut — istirahat dulu ya 💤', letter: 'ada pertanyaan baru — jawab bareng yuk ✉️', happy: `dia lagi ${p.mood} — semoga harimu lembut 💜`, idle: 'siap nemenin hari kalian 🐾' };
   v.innerHTML = `<div class="home">
-    <div class="mascot"><img class="msvg" src="/logo-mascot.png" alt=""><div class="mtxt"><span class="mascot-hi">Hai ${esc(me.user.name)}!</span>${greet[mMood]}</div></div>
+    <div class="mascot"><img class="msvg" src="/mascot-wave.png" alt=""><div class="mtxt"><span class="mascot-hi">Hai ${esc(me.user.name)}!</span>${greet[mMood]}</div></div>
     ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
     ${bdayBanner}
     <div class="hcard pcard">
@@ -1867,7 +1868,7 @@ async function loadSchedules() {
       <button class="del" data-id="${s.id}" title="Hapus">🗑</button></div>`;
   }
   const sl = $('#slist'); if (!sl) return;
-  sl.innerHTML = html || `<div class="empty"><div>📅</div><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
+  sl.innerHTML = html || `<div class="empty"><img class="empty-art" src="/mascot-cal.png" alt=""><b>Belum ada jadwal</b><p>Tambah jadwal bareng ${esc(pname())}</p></div>`;
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => { await api('/schedules/' + b.dataset.id, { method: 'DELETE' }); schedCache = await api('/schedules'); loadSchedules(); });
 }
 
