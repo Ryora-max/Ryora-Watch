@@ -1,5 +1,5 @@
-const CACHE = 'ryora-v69';
-const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg', '/vendor/gsap.min.js'];
+const CACHE = 'ryora-v70';
+const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg', '/vendor/gsap.min.js', '/logo-badge.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => e.waitUntil(clients.claim().then(() => caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))))));
 // Network-first untuk shell app (JS/CSS/HTML) — update selalu keambil; cache cuma fallback offline

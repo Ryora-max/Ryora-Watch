@@ -73,7 +73,7 @@ const updateTogether = () => {
   if (el) el.style.display = t ? '' : 'none';
   // "dia sampai" — selebrasi pas transisi jadi bareng (bukan saat app baru load)
   if (wasTogether === false && t) {
-    heartRain(40); ding(); navigator.vibrate?.([200, 100, 200, 100, 400]);
+    heartRain(40); ding('miss'); navigator.vibrate?.([200, 100, 200, 100, 400]);
     toast(`💚 ${pname()} udah deket — kalian bareng sekarang!`, 6000);
   }
   wasTogether = t;
@@ -83,7 +83,7 @@ const mkIcon = (c, letter = '') => L.divIcon({ html: `<div style="width:20px;hei
 // ---------- AUTH ----------
 function authScreen() {
   const urlCode = new URLSearchParams(location.search).get('join');
-  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg lgart" src="/logo-badge.png" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
   <div class="card"><input id="name" placeholder="Nama kamu" maxlength="30"><button id="go">Masuk</button>
   <button class="ghost" id="rstBtn" style="margin-top:10px">🔑 Masuk dengan kode cadangan</button>
   <div id="rstBox" style="display:none;margin-top:10px"><input id="rstIn" placeholder="Tempel kode cadanganmu"><button id="rstGo" class="mini">Pulihkan akun</button></div>
@@ -119,7 +119,7 @@ function pairScreen(inviteCode) {
   clearInterval(pairPoll); pairPoll = null;
   if (inviteCode) {
     // Mode menunggu — auto-masuk begitu pasangan pakai kodenya
-    app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
+    app.innerHTML = `<div class="screen"><img class="logo lgimg lgart" src="/logo-badge.png" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
     <div class="card"><p class="muted">Kode undanganmu — kirim ke pasanganmu:</p>
       <div class="code" id="codeText">${inviteCode}</div>
       <button class="ghost" id="share">📤 Bagikan link undangan</button>
@@ -140,7 +140,7 @@ function pairScreen(inviteCode) {
     }, 3000);
     return;
   }
-  app.innerHTML = `<div class="screen"><img class="logo lgimg" src="/icon.svg" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
+  app.innerHTML = `<div class="screen"><img class="logo lgimg lgart" src="/logo-badge.png" alt="LYNX LIFE"><h1>LYNX LIFE</h1><div class="byryo">by Ryora 💙</div>
   <p class="muted">Hubungkan dengan pasanganmu</p>
   <div class="card"><button id="create">✨ Buat kode undangan</button>
   <div class="muted">— atau punya kode? —</div>
@@ -214,17 +214,18 @@ async function mainUI() {
   app.innerHTML = `
   <div id="col">
   <header>
+    <button id="burger" class="iconbtn hdr-burger">☰</button>
     <div class="who">${avHtml(me.partner)}
       <div class="whoinfo"><div class="pname">${esc(pname())}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
       <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span> <span id="pstatus" class="stag">${esc(me.partner.status || '')}</span></div></div>
     </div>
-    <div class="hdr-right"><button id="burger" class="iconbtn">☰</button><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
+    <div class="hdr-right"><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
   </header>
   <div id="connBar" style="display:none"></div>
   <div id="view"></div>
   </div>
   <div id="drawer" style="display:none"><div class="dw-bg"></div><div class="dw-in">
-    <div class="dw-hd">${lynxSVG(44)}<div><b>LYNX LIFE</b><span>kamu &amp; ${esc(pname())} 💙</span></div></div>
+    <div class="dw-hd"><img class="dw-logo" src="/logo-badge.png" alt=""><div><b>LYNX LIFE</b><span>kamu &amp; ${esc(pname())} 💙</span></div></div>
     <button class="dw-item on" data-t="home"><i>🏠</i>Home</button>
     <button class="dw-item" data-t="chat"><i>💬</i>Chat</button>
     <button class="dw-item" data-t="map"><i>📡</i>Live</button>
@@ -362,7 +363,7 @@ function connectSocket() {
     const el2 = $('#hstatus'); if (el2) el2.textContent = text;
   });
   socket.on('voice:new', ({ from, dur }) => {
-    ding();
+    ding('care');
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `🎤 ${from} kirim pesan suara (${dur}s)` }); } catch {}
     toast(`🎤 ${from} kirim pesan suara (${dur}s)`);
     loadVoices();
@@ -370,7 +371,7 @@ function connectSocket() {
   socket.on('care:receive', ({ from, kind }) => {
     if (isQuiet()) { toast(`💓 ${from} mikirin kamu — lagi jam tenang 🔕`, 3000); return; }
     navigator.vibrate?.([200, 100, 200]);
-    ding();
+    ding('care');
     const label = { makan: '🍚 "Udah makan belum?"', minum: '💧 "Minum air ya!"', peluk: '🤗 peluk virtual', tidur: '😴 "Istirahat dulu ya"' }[kind] || kind;
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `${from}: ${label}` }); } catch {}
     toast(`${from} — ${label}`, 4000);
@@ -443,7 +444,7 @@ function connectSocket() {
     const msg = winner === 'draw' ? `Seri! ${myHand} vs ${theirHand} 🤝`
       : winner === me.user.id ? `KAMU MENANG! ${myHand} vs ${theirHand} 🎉`
       : `${names[winner]} menang — ${theirHand} vs ${myHand} 😭`;
-    ding(); if (winner === me.user.id) { heartRain(15); navigator.vibrate?.([300, 100, 300]); } else navigator.vibrate?.(150);
+    ding('win'); if (winner === me.user.id) { heartRain(15); navigator.vibrate?.([300, 100, 300]); } else navigator.vibrate?.(150);
     const el = $('#suitState'); if (el) el.textContent = msg;
     toast(msg, 4000);
     suitMyPick = null;
@@ -466,7 +467,7 @@ function connectSocket() {
     renderChatPrev();
   });
   socket.on('letter:new', ({ from }) => {
-    ding(); navigator.vibrate?.([250, 100, 250]);
+    ding('letter'); navigator.vibrate?.([250, 100, 250]);
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('LYNX LIFE', { body: `💌 ${from} nulis surat buat kamu` }); } catch {}
     toast(`💌 ${from} nulis surat buat kamu!`, 5000);
     loadLetters();
@@ -502,7 +503,7 @@ function connectSocket() {
     if (s.end) { ultaState = null; $('.ultamodal')?.remove(); toast('🐍 Ular tangga ditutup'); return; }
     const fresh = !ultaState && s.turn !== me.user.id;
     ultaState = s;
-    if (fresh) { ding(); navigator.vibrate?.(150); toast('🐍 Dia ngajak main Ular Tangga!'); }
+    if (fresh) { ding('game'); navigator.vibrate?.(150); toast('🐍 Dia ngajak main Ular Tangga!'); }
     ultaOpen();
   });
   socket.on('rand:result', ({ result, from, label }) => {
@@ -543,18 +544,28 @@ function connectSocket() {
 
 let suitMyPick = null, suitWaiting = false;
 let actx = null;
-function ding() {
+// bunyi notif — motif beda per event biar kerasa "mana yang dateng"
+function ding(kind = 'chat') {
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
     const t = actx.currentTime;
-    [880, 1320].forEach((f, i) => {
+    const MOTIF = {
+      chat:   [[880, 0], [1174.7, .1]],
+      miss:   [[523.3, 0], [659.3, .13], [784, .26], [1046.5, .4]],
+      letter: [[1046.5, 0], [783.9, .15], [987.8, .3]],
+      win:    [[659.3, 0], [784, .1], [1046.5, .22], [1318.5, .36]],
+      care:   [[987.8, 0], [880, .14]],
+      game:   [[784, 0], [987.8, .11], [1174.7, .22]],
+    };
+    (MOTIF[kind] || MOTIF.chat).forEach(([f, at]) => {
       const o = actx.createOscillator(), g = actx.createGain();
       o.frequency.value = f; o.type = 'sine';
-      g.gain.setValueAtTime(0.001, t + i * 0.12);
-      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.12 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.5);
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.2, t + at + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.55);
       o.connect(g).connect(actx.destination);
-      o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.55);
+      o.start(t + at); o.stop(t + at + 0.6);
     });
   } catch {}
 }
@@ -724,7 +735,9 @@ function updatePartnerMarkers(l) {
   if (lc) lc.onclick = () => map?.fitBounds(L.latLngBounds(markers.me?.getLatLng() || [l.lat, l.lng], markers.p?.getLatLng() || [l.lat, l.lng]).pad(0.3));
 }
 
+let mapUserMoved = false;
 function fitBoth() {
+  if (mapUserMoved) return;
   if (!map || !markers.me || !markers.p) return;
   map.fitBounds(L.latLngBounds(markers.me.getLatLng(), markers.p.getLatLng()).pad(0.3));
   linkLine?.remove(); midMark?.remove();
@@ -972,7 +985,7 @@ function _showTab(tab) {
         <div id="habitList"><div class="hsub">…</div></div>
         <div class="hqin"><input id="habIn" placeholder="Habit baru (misal: minum air 💧)" maxlength="60"><button id="habAdd" class="mini">＋</button></div>
       </div>
-      <div class="msect" style="margin-top:14px"><b>🪣 Bucket list bersama</b>
+      <div class="msect" style="margin-top:14px"><b>🌟 Bucket list bersama</b>
         <div class="hqin"><input id="bucketIn" placeholder="Impian bareng (misal: nonton aurora)" maxlength="120"><button id="bucketAdd" class="mini">+</button></div>
         <div id="blist"></div></div>
     </div>`;
@@ -1179,7 +1192,13 @@ function renderKita(v) {
   const ios = q('#iosInstall');
   if (ios) ios.onclick = () => toast('Di Safari: tap Share (kotak panah ke atas) → "Add to Home Screen"', 7000);
   q('#brk').onclick = async () => {
-    if (confirm('Yakin putus pair? Semua data jadwal & kangen dihapus.')) { await api('/pair/break', { method: 'POST' }); location.reload(); }
+    if (confirm('Yakin putus pair? Semua data kalian dihapus permanen.')) {
+      await api('/pair/break', { method: 'POST' });
+      // reset total — sisain cuma identitas device + preferensi tampilan
+      const keep = ['cw_token', 'cw_theme', 'cw_theme_lock', 'cw_toured', 'cw_setup_done', 'cw_pitch', 'cw_geon'];
+      Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
+      location.reload();
+    }
   };
 }
 
@@ -1840,7 +1859,10 @@ function pinModal(p) {
 }
 function initMap() {
   if (typeof L === 'undefined') { $('#view').innerHTML = '<div class="muted" style="padding:40px">Peta gagal dimuat — cek koneksi internet</div>'; return; }
+  mapUserMoved = false;
   map = L.map('map', { zoomControl: true }).setView([-6.2, 106.8], 13);
+  // user udah geser/zoom sendiri → auto-fit berhenti biar nggak "balik terus"
+  map.on('dragstart zoomstart', () => { mapUserMoved = true; });
   // OSM tiles + tint custom via CSS (look "buatan kita" tanpa API key — CARTO sekarang butuh key)
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   if (myLoc) { markers.me = L.marker([myLoc.lat, myLoc.lng], { icon: mkIcon('#4fd8c0', avMarker(me.user)) }).addTo(map); map.setView([myLoc.lat, myLoc.lng], 15); }

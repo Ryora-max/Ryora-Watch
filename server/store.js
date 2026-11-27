@@ -224,6 +224,7 @@ export const store = {
     return { ...p, status: 'sealed' };
   },
   breakPair: (pairId) => {
+    try { db.prepare('UPDATE users SET pet_name=NULL WHERE pair_id=?').run(pairId); } catch {}
     db.prepare('UPDATE users SET pair_id=NULL WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM schedules WHERE pair_id=?').run(pairId);
     db.prepare('DELETE FROM miss_events WHERE pair_id=?').run(pairId);
@@ -434,13 +435,10 @@ export const store = {
   }),
 
   breakPairAll: (pairId) => {
-    db.prepare('DELETE FROM notes WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM answers WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM photos WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM bucket WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM memories WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM voices WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM reactions WHERE pair_id=?').run(pairId);
-    db.prepare('DELETE FROM capsules WHERE pair_id=?').run(pairId);
+    // habit_checks ngikut habit — hapus dulu sebelum habits-nya hilang
+    try { db.prepare('DELETE FROM habit_checks WHERE habit_id IN (SELECT id FROM habits WHERE pair_id=?)').run(pairId); } catch {}
+    ['notes', 'answers', 'photos', 'bucket', 'memories', 'voices', 'reactions', 'capsules',
+      'couple_msgs', 'letters', 'pins', 'expenses', 'habits', 'quiz', 'suit_results', 'mood_log']
+      .forEach(t => { try { db.prepare(`DELETE FROM ${t} WHERE pair_id=?`).run(pairId); } catch {} });
   },
 };

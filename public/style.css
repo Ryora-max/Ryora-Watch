@@ -801,3 +801,20 @@ button.mini.ghost { background:var(--soft); }
 
 /* mobile: nav bawah digantikan hamburger drawer */
 @media (max-width:859px) { nav { display:none; } }
+
+/* leaflet zoom — tombol lebih gede & pastel, pinch/scroll tetap jalan */
+.leaflet-control-zoom { border:none !important; box-shadow:0 8px 22px var(--shadow) !important; border-radius:14px !important; overflow:hidden; }
+.leaflet-control-zoom a { width:38px !important; height:38px !important; line-height:38px !important; font-size:19px !important; font-weight:800 !important; background:var(--card) !important; color:var(--accent) !important; border:none !important; }
+.leaflet-control-zoom a:active { background:var(--tint) !important; }
+
+/* hamburger di kiri header */
+.hdr-burger { width:38px; height:38px; flex-shrink:0; font-size:17px; margin-right:10px; }
+header { display:flex; align-items:center; }
+header .who { flex:1; min-width:0; }
+
+/* sched loading dots → label jelas */
+.hsub:only-child { display:block; }
+
+/* logo badge — art lynx circle */
+.dw-logo { width:46px; height:46px; border-radius:50%; object-fit:cover; flex-shrink:0; box-shadow:0 6px 16px var(--shadow); }
+.lgart { border-radius:50% !important; }
