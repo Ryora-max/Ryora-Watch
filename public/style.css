@@ -744,8 +744,7 @@ button.mini.ghost { background:var(--soft); }
 
 /* ================= CHAT PAGE — layar penuh dedicated ================= */
 .chatpage { padding:0; background:transparent; }
-.chatpg { width:100%; max-width:560px; height:100%; display:flex; flex-direction:column; background:var(--bodybg); overflow:hidden; }
-@media(min-width:640px){ .chatpg { border-radius:26px; height:92%; box-shadow:0 30px 80px rgba(60,40,120,.35); border:1px solid var(--line); } }
+.chatpg { width:100%; height:100%; display:flex; flex-direction:column; background:var(--bodybg); overflow:hidden; }
 .cphd { display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--card); border-bottom:1px solid var(--line); box-shadow:0 4px 18px var(--shadow); z-index:2; }
 .cphd .av,.cphd .pav { width:38px; height:38px; border-radius:50%; flex-shrink:0; }
 .cpback { font-size:20px; padding:4px 10px; border-radius:12px; color:var(--muted); }
@@ -786,3 +785,19 @@ button.mini.ghost { background:var(--soft); }
 .cpin input { width:auto; }
 .chatpg,.cpin,.cphd { box-sizing:border-box; }
 .cpin { width:100%; }
+
+/* ================= HAMBURGER DRAWER ================= */
+#drawer { position:fixed; inset:0; z-index:3000; }
+.dw-bg { position:absolute; inset:0; background:rgba(48,36,90,.45); backdrop-filter:blur(6px); }
+.dw-in { position:absolute; left:0; top:0; bottom:0; width:min(78vw,300px); background:var(--card); border-right:1px solid var(--line); box-shadow:24px 0 60px var(--shadow); padding:20px 14px calc(14px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:6px; overflow-y:auto; }
+.dw-hd { display:flex; gap:10px; align-items:center; padding:4px 6px 14px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+.dw-hd b { font-family:'Fredoka','Plus Jakarta Sans',sans-serif; font-size:15px; display:block; letter-spacing:.5px; }
+.dw-hd span { font-size:11px; color:var(--muted); }
+.dw-item { display:flex; align-items:center; gap:12px; padding:12px; border-radius:14px; background:transparent; color:var(--text); font-weight:700; font-size:14.5px; box-shadow:none; text-align:left; }
+.dw-item i { font-style:normal; font-size:18px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; background:var(--tint); border-radius:11px; flex-shrink:0; }
+.dw-item.on { background:var(--grad); color:#fff; box-shadow:0 8px 20px var(--shadow); }
+.dw-item.on i { background:rgba(255,255,255,.22); }
+.dw-ft { margin-top:auto; text-align:center; font-size:12px; color:var(--muted); padding:10px; }
+
+/* mobile: nav bawah digantikan hamburger drawer */
+@media (max-width:859px) { nav { display:none; } }

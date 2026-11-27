@@ -218,13 +218,26 @@ async function mainUI() {
       <div class="whoinfo"><div class="pname">${esc(pname())}${me.partner.mood ? ' ' + me.partner.mood : ''} <span id="dot">⚪</span><span id="pbatt"></span><span id="together" class="tbadge" style="display:none">💚 bareng</span></div>
       <div class="muted" id="missStat"><span id="daystat">💕 hari ke-${daysTogether()}</span> · <span id="seen">…</span> <span id="pstatus" class="stag">${esc(me.partner.status || '')}</span></div></div>
     </div>
-    <div class="hdr-right"><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
+    <div class="hdr-right"><button id="burger" class="iconbtn">☰</button><span id="clock" class="clock"></span><button id="gear" class="iconbtn">⚙️</button></div>
   </header>
   <div id="connBar" style="display:none"></div>
   <div id="view"></div>
   </div>
+  <div id="drawer" style="display:none"><div class="dw-bg"></div><div class="dw-in">
+    <div class="dw-hd">${lynxSVG(44)}<div><b>LYNX LIFE</b><span>kamu &amp; ${esc(pname())} 💙</span></div></div>
+    <button class="dw-item on" data-t="home"><i>🏠</i>Home</button>
+    <button class="dw-item" data-t="chat"><i>💬</i>Chat</button>
+    <button class="dw-item" data-t="map"><i>📡</i>Live</button>
+    <button class="dw-item" data-t="sched"><i>📅</i>Jadwal</button>
+    <button class="dw-item" data-t="uang"><i>💰</i>Uang</button>
+    <button class="dw-item" data-t="miss"><i>🎮</i>Main</button>
+    <button class="dw-item" data-t="ai"><i>✦</i>AI</button>
+    <button class="dw-item" data-t="kita"><i>✨</i>Kita</button>
+    <div class="dw-ft">💕 hari ke-${daysTogether()}</div>
+  </div></div>
   <nav>
     <button data-t="home" class="on">🏠<span>Home</span></button>
+    <button data-t="chat">💬<span>Chat</span></button>
     <button data-t="map">📡<span>Live</span></button>
     <button data-t="sched">📅<span>Jadwal</span></button>
     <button data-t="uang">💰<span>Uang</span></button>
@@ -232,7 +245,15 @@ async function mainUI() {
     <button data-t="ai">✦<span>AI</span></button>
     <button data-t="kita">✨<span>Kita</span></button>
   </nav>`;
-  document.querySelectorAll('nav button').forEach(b => b.onclick = () => { document.querySelectorAll('nav button').forEach(x => x.classList.remove('on')); b.classList.add('on'); show(b.dataset.t); });
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => goTab(b.dataset.t));
+  const drawer = $('#drawer');
+  const dwClose = () => { drawer.style.display = 'none'; };
+  $('#burger').onclick = () => {
+    drawer.style.display = 'block';
+    if (G) { G.fromTo(drawer.querySelector('.dw-in'), { x: '-100%' }, { x: 0, duration: .32, ease: 'power3.out' }); G.fromTo(drawer.querySelector('.dw-bg'), { opacity: 0 }, { opacity: 1, duration: .25 }); }
+  };
+  drawer.querySelector('.dw-bg').onclick = dwClose;
+  drawer.querySelectorAll('.dw-item').forEach(b => b.onclick = () => { dwClose(); goTab(b.dataset.t); });
   $('#gear').onclick = settings;
   partnerOnline = !!me.online; partnerSeen = me.partnerLastSeen;
   $('#dot').textContent = partnerOnline ? '🟢' : '⚪';
@@ -558,6 +579,10 @@ function fxPop(el, big = false) {
 // modal auto-pop tiap ada .wmodal masuk DOM
 if (G) new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
   if (n.nodeType === 1 && n.classList?.contains('wmodal')) {
+    if (n.classList.contains('chatpage')) {
+      G.fromTo(n.firstElementChild, { x: '100%' }, { x: 0, duration: .38, ease: 'power3.out', clearProps: 'all' });
+      return;
+    }
     G.fromTo(n, { opacity: 0 }, { opacity: 1, duration: .28 });
     const c = n.firstElementChild; if (c) fxPop(c, true);
   }
@@ -709,6 +734,10 @@ function fitBoth() {
 }
 
 // ---------- TABS ----------
+function goTab(t) {
+  document.querySelectorAll('nav button,.dw-item').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  show(t);
+}
 function show(tab) { _showTab(tab); requestAnimationFrame(() => fxCards($('#view'))); }
 function _showTab(tab) {
   currentTab = tab;
@@ -718,6 +747,7 @@ function _showTab(tab) {
   v.classList.remove('vfade'); void v.offsetWidth; v.classList.add('vfade');
   clearTimeout(v._vt); v._vt = setTimeout(() => v.classList.remove('vfade'), 750);
   if (tab === 'home') return renderHome(v);
+  if (tab === 'chat') return renderChatTab(v);
   if (tab === 'map') {
     v.innerHTML = `<div id="map"></div><div class="geocard" id="geoCard" style="display:none"></div><button id="geoTgl" class="geotgl ${geoOff ? 'off' : ''}" title="Share lokasi">${geoOff ? '📍⊘' : '📍'}</button><button id="pinBtn" class="geotgl" style="right:62px" title="Pin tempat favorit di sini">📌</button><div class="locpanel" id="locpanel">${avHtml(me.partner)}<div class="locinfo"><b>${esc(pname())}</b><span>menunggu lokasi…</span></div></div><div class="pinchips" id="pinChips"></div>`;
     $('#geoTgl').onclick = () => { toggleGeo(); show('map'); };
@@ -1302,7 +1332,7 @@ async function renderHome(v) {
     <div class="hcard">
       <div class="hlabel"><em class="ic">💬</em> Chat kalian</div>
       <div class="chatprev" id="chatPrev"><div class="hsub">belum ada chat — mulai ngobrol 💬</div></div>
-      <div class="hqin"><input id="chatIn" placeholder="Ketik pesan…" maxlength="500"><button id="chatSend" class="mini">➤</button><button id="chatImg" class="mini ghost" title="Kirim foto">📷</button><input type="file" id="chatFile" accept="image/*" capture="environment" hidden><button id="chatAll" class="mini ghost" title="Semua chat">💬</button></div>
+      <button id="chatAll" class="mini" style="width:100%;margin-top:6px">💬 Buka chat</button>
     </div>
     <div class="hcard">
       <div class="hlabel"><em class="ic">📸</em> Foto hari ini</div>
@@ -1390,17 +1420,7 @@ async function renderHome(v) {
   };
   // 💬 mini-chat
   api('/msgs').then(m => { if (Array.isArray(m)) { chatCache = m; renderChatPrev(); } }).catch(() => {});
-  const sendChat = async (inp) => {
-    const t = inp.value.trim(); if (!t) return;
-    inp.value = '';
-    const r = await api('/msg', { method: 'POST', body: { text: t } });
-    if (r.error) toast(r.error);
-  };
-  $('#chatSend').onclick = () => sendChat($('#chatIn'));
-  $('#chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat($('#chatIn')); };
-  $('#chatAll').onclick = chatModal;
-  $('#chatImg').onclick = () => $('#chatFile').click();
-  $('#chatFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
+  $('#chatAll').onclick = () => goTab('chat');
   if (partnerLoc?.lat != null) placeName(partnerLoc.lat, partnerLoc.lng).then(n => { const e = $('#hplace'); if (e && n) e.textContent = '📍 ' + n; });
   api('/garden').then(g => {
     if (!g || !$('#gStage')) return;
@@ -1461,7 +1481,7 @@ const renderChatPrev = () => {
     const mine = m.mine ?? (m.uid === me?.user?.id);
     return `<div class="cpmsg ${mine ? 'me' : ''}"><b>${mine ? 'Kamu' : esc(m.from_name || pname())}</b>${m.kind === 'img' ? '<i>📷 foto</i>' : esc(m.text)}</div>`;
   }).join('') || '<div class="hsub">belum ada chat — mulai ngobrol 💬</div>';
-  el.onclick = e => { if (e.target.classList.contains('cimg')) photoViewer(e.target.src); };
+  el.onclick = e => { if (e.target.classList.contains('cimg')) { e.stopPropagation(); photoViewer(e.target.src); } else goTab('chat'); };
 };
 const cmsgRow = (m) => {
   const mine = m.mine ?? (m.uid === me?.user?.id);
@@ -1493,25 +1513,21 @@ const sendChatImg = (file) => {
   };
   img.src = URL.createObjectURL(file);
 };
-function chatModal() {
-  if ($('.chatmodal')) return;
-  const el = document.createElement('div'); el.className = 'wmodal chatmodal chatpage';
-  el.innerHTML = `<div class="chatpg">
-    <div class="cphd"><button id="cmCls" class="cpback">←</button>${avHtml(me.partner)}<div class="cpinfo"><b>${esc(pname())}</b><span id="cpStat">${partnerOnline ? '🟢 online' : partnerSeen ? '⚪ aktif ' + agoText(partnerSeen) : '⚪ offline'}</span></div></div>
+// chat = tab dedicated — halaman penuh di #view
+function renderChatTab(v) {
+  v.innerHTML = `<div class="chatpg">
+    <div class="cphd">${avHtml(me.partner)}<div class="cpinfo"><b>${esc(pname())}</b><span id="cpStat">${partnerOnline ? '🟢 online' : partnerSeen ? '⚪ aktif ' + agoText(partnerSeen) : '⚪ offline'}</span></div></div>
     <div id="cmlist" class="cmlist">${chatCache.map(cmsgRow).join('') || `<div class="cpempty"><span>💬</span>belum ada chat<br><i>sapa ${esc(pname())} duluan 👋</i></div>`}</div>
     <div class="cpin"><button id="cmImg" class="cpbtn" title="Kirim foto">📷</button><input id="cmIn" placeholder="Ketik pesan…" maxlength="500" autocomplete="off"><button id="cmSend" class="cpsend">➤</button><input type="file" id="cmFile" accept="image/*" capture="environment" hidden></div>
   </div>`;
-  document.body.appendChild(el);
-  const list = el.querySelector('#cmlist');
+  const list = v.querySelector('#cmlist');
   list.scrollTop = list.scrollHeight;
-  const send = async () => { const t = el.querySelector('#cmIn').value.trim(); if (!t) return; el.querySelector('#cmIn').value = ''; await api('/msg', { method: 'POST', body: { text: t } }); };
-  el.querySelector('#cmSend').onclick = send;
-  el.querySelector('#cmIn').onkeydown = e => { if (e.key === 'Enter') send(); };
-  el.querySelector('#cmImg').onclick = () => el.querySelector('#cmFile').click();
-  el.querySelector('#cmFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
+  const send = async () => { const t = v.querySelector('#cmIn').value.trim(); if (!t) return; v.querySelector('#cmIn').value = ''; await api('/msg', { method: 'POST', body: { text: t } }); };
+  v.querySelector('#cmSend').onclick = send;
+  v.querySelector('#cmIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+  v.querySelector('#cmImg').onclick = () => v.querySelector('#cmFile').click();
+  v.querySelector('#cmFile').onchange = e => { sendChatImg(e.target.files[0]); e.target.value = ''; };
   list.onclick = e => { if (e.target.classList.contains('cimg')) photoViewer(e.target.src); };
-  el.querySelector('#cmCls').onclick = () => el.remove();
-  el.querySelector('#cmIn').focus();
 }
 
 // ---------- ULAR TANGGA — race ke 100, state di server ----------
