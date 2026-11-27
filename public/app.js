@@ -531,7 +531,43 @@ function ding() {
   } catch {}
 }
 
+// ---------- GSAP polish layer (semua di-guard biar aman tanpa gsap) ----------
+const G = window.gsap;
+function fxCards(v) {
+  if (!G || !v) return;
+  const els = v.querySelectorAll('.hcard,.playbox,.msect,.item,.hchip,.statcell,.expchip,.league,.randbtn,.garden,.pcard,.mfold,.settings,.geocard,.locpanel,.mascot,.sbtn');
+  if (!els.length) return;
+  G.fromTo(els, { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: .5, stagger: .04, ease: 'power3.out', clearProps: 'opacity,transform', overwrite: 'auto' });
+}
+function fxNum(el, to, fmt = v => Math.round(v)) {
+  if (!G || !el) return;
+  const o = { v: 0 };
+  G.to(o, { v: to, duration: .9, ease: 'power2.out', onUpdate: () => el.textContent = fmt(o.v) });
+}
+function fxPop(el, big = false) {
+  if (!G || !el) return;
+  G.fromTo(el, { scale: big ? .82 : .92, opacity: 0 }, { scale: 1, opacity: 1, duration: .5, ease: 'back.out(1.7)', clearProps: 'all' });
+}
+// modal auto-pop tiap ada .wmodal masuk DOM
+if (G) new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+  if (n.nodeType === 1 && n.classList?.contains('wmodal')) {
+    G.fromTo(n, { opacity: 0 }, { opacity: 1, duration: .28 });
+    const c = n.firstElementChild; if (c) fxPop(c, true);
+  }
+}))).observe(document.body, { childList: true });
+
 function heartRain(n) {
+  if (G) {
+    for (let i = 0; i < n; i++) {
+      const h = document.createElement('div');
+      h.textContent = '❤';
+      h.style.cssText = 'position:fixed;top:-44px;left:' + (Math.random() * 100) + 'vw;font-size:' + (14 + Math.random() * 26) + 'px;z-index:99999;pointer-events:none;filter:drop-shadow(0 2px 6px rgba(230,80,140,.4))';
+      document.body.appendChild(h);
+      G.to(h, { y: innerHeight + 90, x: '+=' + (Math.random() * 90 - 45), rotation: Math.random() * 100 - 50, duration: 2.3 + Math.random() * 1.7, delay: Math.random() * .8, ease: 'power1.in', onComplete: () => h.remove() });
+      G.to(h, { opacity: 0, duration: .7, delay: 1.9 + Math.random() * 1.4 });
+    }
+    return;
+  }
   for (let i = 0; i < n; i++) {
     const h = document.createElement('div');
     h.className = 'heartfall'; h.textContent = '❤';
@@ -562,6 +598,7 @@ function missTap() {
   if (!socket?.connected) { toast('Belum terhubung ke server'); return; }
   tapCount = Math.min(tapCount + 1, 5);
   const tn = $('#tapN'); if (tn) tn.textContent = '×' + tapCount;
+  const mb = $('#missBig'); if (mb && G) G.fromTo(mb, { scale: .88 }, { scale: 1, duration: .55, ease: 'elastic.out(1.1,.38)', clearProps: 'transform' });
   navigator.vibrate?.(40);
   clearTimeout(tapTimer);
   tapTimer = setTimeout(() => { socket.emit('miss:send', { pattern: tapCount }); tapCount = 0; const t2 = $('#tapN'); if (t2) t2.textContent = ''; loadMissTab(); }, 1200);
@@ -665,7 +702,8 @@ function fitBoth() {
 }
 
 // ---------- TABS ----------
-function show(tab) {
+function show(tab) { _showTab(tab); requestAnimationFrame(() => fxCards($('#view'))); }
+function _showTab(tab) {
   currentTab = tab;
   try { map?.remove(); } catch {}
   map = null; delete markers.me; delete markers.p; trailLine = null; linkLine = null; midMark = null;
@@ -726,8 +764,9 @@ function show(tab) {
       const savEl = $('#savTop'), sumEl = $('#expSum'), perEl = $('#perSum'), goalEl = $('#goalBox'), gf = $('#goalForm'), slEl = $('#savList'), listEl = $('#expList');
       if (!sumEl || !sumEl.isConnected) return;
       const s = d.daily || {}, sv = d.saving || {};
-      savEl.innerHTML = `<div class="savbal">${rp(sv.balance || 0)}</div>
+      savEl.innerHTML = `<div class="savbal" id="savBalN">Rp 0</div>
         <div class="savsplit"><span>💙 kamu nabung <b>${rp(sv.me || 0)}</b></span><span>💗 dia nabung <b>${rp(sv.them || 0)}</b></span></div>`;
+      fxNum($('#savBalN'), sv.balance || 0, v => rp(Math.round(v)));
       sumEl.innerHTML = `<div class="expchip in"><em class="ic sm">↑</em><div><b>${rp(s.in || 0)}</b><i>masuk</i></div></div>
         <div class="expchip out"><em class="ic sm">↓</em><div><b>${rp(s.out || 0)}</b><i>keluar</i></div></div>
         <div class="expchip bal"><em class="ic sm">💰</em><div><b>${rp(s.balance || 0)}</b><i>sisa</i></div></div>`;
