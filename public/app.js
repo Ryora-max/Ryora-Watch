@@ -1304,7 +1304,7 @@ async function renderHome(v) {
   const mMood = (hr >= 23 || hr < 6 || darkT) ? 'sleep' : (!answered ? 'letter' : (p.mood ? 'happy' : 'idle'));
   const greet = { sleep: 'udah larut — istirahat dulu ya 💤', letter: 'ada pertanyaan baru — jawab bareng yuk ✉️', happy: `dia lagi ${p.mood} — semoga harimu lembut 💜`, idle: 'siap nemenin hari kalian 🐾' };
   v.innerHTML = `<div class="home">
-    <div class="mascot">${lynxSVG(mMood)}<div class="mtxt"><span class="mascot-hi">Hai ${esc(me.user.name)}!</span>${greet[mMood]}</div></div>
+    <div class="mascot"><img class="msvg" src="/logo-mascot.png" alt=""><div class="mtxt"><span class="mascot-hi">Hai ${esc(me.user.name)}!</span>${greet[mMood]}</div></div>
     ${isMday ? `<div class="hcard mday">🎂 <b>Monthsary ke-${mNum}!</b><span>${mNum} bulan kalian bareng 💕</span></div>` : ''}
     ${bdayBanner}
     <div class="hcard pcard">
@@ -1620,28 +1620,6 @@ const avTok = (uid) => {
   return u?.avatar?.startsWith('data:') ? `<img src="${u.avatar}">` : esc(u?.avatar || (u?.name || '?')[0].toUpperCase());
 };
 // maskot lynx — wajah kecil ekspresif (idle/happy/sleep/letter)
-const lynxSVG = (mood = 'idle') => {
-  const eyes = {
-    idle: '<circle cx="22" cy="34" r="3.4"/><circle cx="42" cy="34" r="3.4"/>',
-    letter: '<circle cx="22" cy="34" r="3.4"/><circle cx="42" cy="34" r="3.4"/>',
-    happy: '<path d="M18 34 q4 -5 8 0" fill="none"/><path d="M38 34 q4 -5 8 0" fill="none"/>',
-    sleep: '<path d="M18 35 h8"/><path d="M38 35 h8"/>',
-  }[mood] || '';
-  return `<svg class="msvg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="mg_${mood}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9a3f7"/><stop offset="1" stop-color="#8b6fd8"/></linearGradient></defs>
-    <path d="M15 24 L11 5 L26 15 Z" fill="url(#mg_${mood})"/><path d="M49 24 L53 5 L38 15 Z" fill="url(#mg_${mood})"/>
-    <circle cx="13" cy="6" r="2.8" fill="#6d54b8"/><circle cx="51" cy="6" r="2.8" fill="#6d54b8"/>
-    <rect x="9" y="15" width="46" height="45" rx="21" fill="url(#mg_${mood})"/>
-    <g fill="#3d2f6b" stroke="#3d2f6b" stroke-width="2.8" stroke-linecap="round">${eyes}</g>
-    ${mood === 'happy' ? '<circle cx="16" cy="41" r="3.2" fill="#f5a3c8" opacity=".85"/><circle cx="48" cy="41" r="3.2" fill="#f5a3c8" opacity=".85"/>' : ''}
-    <path d="M29 45 h6 l-3 4 Z" fill="#3d2f6b"/>
-    <path d="M32 49 q0 4 -5 4.5 M32 49 q0 4 5 4.5" stroke="#3d2f6b" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-    <g stroke="#3d2f6b" stroke-width="1.7" stroke-linecap="round" opacity=".5"><path d="M14 44 l-8 -1"/><path d="M14 50 l-8 2"/><path d="M50 44 l8 -1"/><path d="M50 50 l8 2"/></g>
-    ${mood === 'sleep' ? '<text x="44" y="14" font-size="10">💤</text>' : ''}
-    ${mood === 'letter' ? '<text x="43" y="52" font-size="12">💌</text>' : ''}
-  </svg>`;
-};
-
 function photoViewer(src) {
   const el = document.createElement('div'); el.className = 'wmodal';
   el.style.background = 'rgba(5,15,30,.94)';
