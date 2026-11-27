@@ -21,3 +21,4 @@ ryora-server.log
 tools/
 tunnel.log
 test/tmp/
+server*.log
